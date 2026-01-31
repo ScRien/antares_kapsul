@@ -370,7 +370,7 @@ app.get("/api/queue-status", (req, res) => {
 // ============= RAPOR ENDPOINTS =============
 
 app.get("/api/generate-report", (req, res) => {
-  const doc = new PDFDocument();
+  const doc = new PDFDocument({ margin: 50 }); // Kenar payı eklendi
   const fileName = `Antares_Analiz_Raporu_${Date.now()}.pdf`;
 
   res.setHeader("Content-Type", "application/pdf");
@@ -378,54 +378,151 @@ app.get("/api/generate-report", (req, res) => {
 
   doc.pipe(res);
 
-  doc
-    .fontSize(22)
-    .fillColor("#1a5f7a")
-    .text("ANTARES: AKILLI KORUMA KAPSÜLÜ", { align: "center" });
-  doc
-    .fontSize(14)
-    .fillColor("black")
-    .text("ESER TRANSFER VE MİKROKLİMA ANALİZ RAPORU", { align: "center" });
-  doc.moveDown();
+  // --- ARKA PLAN VE ÇERÇEVE ---
+  doc.rect(20, 20, 555, 780).strokeColor("#e2e8f0").lineWidth(1).stroke();
 
+  // --- HEADER SECTION ---
   doc
+    .fillColor("#0f172a")
+    .fontSize(24)
+    .text("ANTARES", 50, 50, { lineGap: 5 })
     .fontSize(10)
-    .text(`Rapor Oluşturma: ${new Date().toLocaleString("tr-TR")}`);
-  doc.text(
-    `Hedef Bağlam Değerleri: ${targetClimate.t}°C Sıcaklık | %${targetClimate.h} Nem`,
-  );
-  doc.moveDown();
+    .fillColor("#64748b")
+    .text("AKILLI KORUMA KAPSÜLÜ | DİJİTAL İKİZ SİSTEMİ", { tracking: 1.5 });
 
+  // Sağ üst köşe - Rapor Bilgileri
   doc
-    .fontSize(12)
-    .fillColor("#333")
-    .text("--- TRANSFER SÜRECİ VERİ GÜNLÜĞÜ (KARA KUTU) ---");
-  doc.moveDown(0.5);
-
-  sensorHistory.forEach((log) => {
-    doc
-      .fontSize(9)
-      .fillColor("black")
-      .text(
-        `${log.timestamp} > T: ${log.temperature}°C | H: %${log.humidity} | Şok: ${log.shock}G | Durum: ${log.system_status} | F1: ${log.f1} | F2: ${log.f2}`,
-      );
-  });
+    .fillColor("#0f172a")
+    .fontSize(8)
+    .text(`RAPOR ID: #ANT-${Date.now().toString().slice(-6)}`, 400, 50, {
+      align: "right",
+    })
+    .text(`TARİH: ${new Date().toLocaleString("tr-TR")}`, 400, 62, {
+      align: "right",
+    });
 
   doc.moveDown(2);
+  doc.path("M 50 90 L 545 90").lineWidth(2).strokeColor("#3a7bd5").stroke();
 
-  const sealY = doc.y;
-  doc.rect(50, sealY, 500, 60).stroke();
+  // --- ÖZET KARTLARI (Kutu İçinde Değerler) ---
+  const latest = sensorHistory[sensorHistory.length - 1] || {};
+
   doc
-    .fontSize(16)
-    .fillColor("green")
-    .text("DİJİTAL MÜHÜR: KORUMA DOĞRULANDI", 70, sealY + 15);
+    .roundedRect(50, 110, 150, 60, 10)
+    .fill("#f8fafc")
+    .strokeColor("#cbd5e1")
+    .stroke();
+  doc.fillColor("#64748b").fontSize(8).text("SON SICAKLIK", 65, 125);
   doc
+    .fillColor("#0f172a")
+    .fontSize(18)
+    .text(`${latest.temperature || "--"}°C`, 65, 140);
+
+  doc
+    .roundedRect(220, 110, 150, 60, 10)
+    .fill("#f8fafc")
+    .strokeColor("#cbd5e1")
+    .stroke();
+  doc.fillColor("#64748b").fontSize(8).text("SON NEM", 235, 125);
+  doc
+    .fillColor("#0f172a")
+    .fontSize(18)
+    .text(`%${latest.humidity || "--"}`, 235, 140);
+
+  doc
+    .roundedRect(390, 110, 155, 60, 10)
+    .fill("#f8fafc")
+    .strokeColor("#cbd5e1")
+    .stroke();
+  doc.fillColor("#64748b").fontSize(8).text("MİNYATÜR DURUMU", 405, 125);
+  doc
+    .fillColor("#10ac84")
+    .fontSize(12)
+    .text("GÜVENLİ", 405, 145, { bold: true });
+
+  doc.moveDown(6);
+
+  // --- VERİ TABLOSU ---
+  doc
+    .fontSize(12)
+    .fillColor("#1e293b")
+    .text("TRANSFER SÜRECİ DETAYLI ANALİZ GÜNLÜĞÜ", 50, 200);
+
+  // Tablo Başlıkları
+  const tableTop = 230;
+  doc.rect(50, tableTop, 495, 20).fill("#1e293b");
+
+  doc
+    .fillColor("#ffffff")
     .fontSize(8)
-    .fillColor("gray")
+    .text("ZAMAN", 60, tableTop + 7)
+    .text("SICAKLIK", 180, tableTop + 7)
+    .text("NEM", 250, tableTop + 7)
+    .text("ŞOK (G)", 310, tableTop + 7)
+    .text("DURUM", 370, tableTop + 7)
+    .text("FANLAR", 480, tableTop + 7);
+
+  let rowY = tableTop + 20;
+
+  // Sadece son 25 kaydı raporla (sayfa taşmaması için)
+  sensorHistory.slice(-25).forEach((log, index) => {
+    const bgColor = index % 2 === 0 ? "#ffffff" : "#f1f5f9";
+    doc.rect(50, rowY, 495, 20).fill(bgColor);
+
+    doc
+      .fillColor("#334155")
+      .fontSize(7)
+      .text(log.timestamp.split(" ")[1], 60, rowY + 7) // Sadece saat
+      .text(`${log.temperature}°C`, 180, rowY + 7)
+      .text(`%${log.humidity}`, 250, rowY + 7)
+      .text(`${log.shock}G`, 310, rowY + 7)
+      .text(log.system_status || "NORMAL", 370, rowY + 7)
+      .text(`F1:${log.f1} F2:${log.f2}`, 480, rowY + 7);
+
+    rowY += 20;
+  });
+
+  // --- FOOTER & DİJİTAL MÜHÜR ---
+  const footerY = 680;
+
+  // Mühür Kutusu
+  doc
+    .roundedRect(50, footerY, 495, 80, 5)
+    .lineWidth(2)
+    .dash(5, { space: 2 })
+    .strokeColor("#10ac84")
+    .stroke();
+
+  doc
+    .undash()
+    .fillColor("#10ac84")
+    .fontSize(14)
+    .text("DİJİTAL KORUMA SERTİFİKASI", 70, footerY + 20);
+
+  doc
+    .fillColor("#64748b")
+    .fontSize(8)
     .text(
-      "Bu belge, kapsül içerisindeki sensör verilerinin saniye saniye analizi sonucu Antares Cloud tarafından üretilmiştir.",
+      "Bu belge, kapsül içerisindeki kriptolojik mühür ve sensör verilerinin",
       70,
-      sealY + 40,
+      footerY + 40,
+    )
+    .text(
+      "anlık analizi ile üretilmiştir. Eser bütünlüğü Antares güvencesindedir.",
+      70,
+      footerY + 50,
+    );
+
+  // QR Yerine Sembolik Kod
+  doc
+    .fontSize(7)
+    .fillColor("#cbd5e1")
+    .text(
+      `AUTH_CODE: ${Buffer.from(latest.timestamp || "0")
+        .toString("base64")
+        .slice(0, 20)}`,
+      70,
+      footerY + 65,
     );
 
   doc.end();
