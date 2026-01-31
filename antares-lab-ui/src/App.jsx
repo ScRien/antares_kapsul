@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
-// API_BASE sonundaki /api kısmını sildik, çünkü backend direkt kök dizinden çalışıyor
-const API_BASE = "https://antares-backend.onrender.com";
+// Backend /api ile çalışıyor -> base'i /api yap
+const API_BASE = "https://antares-backend.onrender.com/api";
 
 function App() {
   const [data, setData] = useState({
@@ -16,19 +16,23 @@ function App() {
   const [passInput, setPassInput] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Veri Çekme (Endpoint: /data)
   useEffect(() => {
-    const interval = setInterval(() => {
-      axios
-        .get(`${API_BASE}/data`)
-        .then((res) => {
-          // Eğer gelen veri bir nesne ise state'i güncelle
-          if (res.data && typeof res.data === "object") {
-            setData(res.data);
-          }
-        })
-        .catch((err) => console.log("Veri yolu hatalı veya sunucu kapalı."));
-    }, 2000);
+    const client = axios.create({
+      baseURL: API_BASE,
+      timeout: 8000, // Render uykudaysa beklemesin diye
+    });
+
+    const fetchData = async () => {
+      try {
+        const res = await client.get("/data"); // -> /api/data
+        if (res.data && typeof res.data === "object") setData(res.data);
+      } catch (e) {
+        console.log("Veri alınamadı (sunucu uyuyor olabilir).");
+      }
+    };
+
+    fetchData(); // ilk açılışta 1 kere çek
+    const interval = setInterval(fetchData, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -37,38 +41,55 @@ function App() {
     else alert("Hatalı Giriş!");
   };
 
-  // Donanım Kontrolü (Endpoint: /cmd?fanX=ON/OFF)
+  // --- Donanım Kontrolü (State Mantığına Uygun) ---
   const toggleHardware = (type) => {
-    // Mevcut duruma göre tam tersini gönder (1 ise OFF, 0 ise ON)
-    const currentState = type === "fan1" ? data.f1 : data.f2;
-    const val = currentState === 1 ? "OFF" : "ON";
+    // 1. Önce mevcut durumu state'den al
+    const isCurrentlyOn = type === "fan1" ? data.f1 === 1 : data.f2 === 1;
+    const newValue = isCurrentlyOn ? "OFF" : "ON";
+    const newIntVal = isCurrentlyOn ? 0 : 1;
 
+    // 2. İyimser Güncelleme: Backend cevabını beklemeden arayüzü değiştir
+    setData((prev) => ({
+      ...prev,
+      [type === "fan1" ? "f1" : "f2"]: newIntVal,
+    }));
+
+    // 3. Backend'e isteği gönder
     axios
-      .get(`${API_BASE}/cmd?${type}=${val}`)
-      .then(() => {
-        console.log(`${type} komutu gönderildi: ${val}`);
+      .get(`${API_BASE}/cmd`, {
+        params: { [type]: newValue },
       })
-      .catch((err) => console.error("Komut hatası:", err));
+      .then(() => console.log(`${type} başarıyla ${newValue} yapıldı.`))
+      .catch((err) => {
+        console.error("Komut hatası:", err);
+        // Hata olursa state'i eski haline geri döndür (Rollback)
+        setData((prev) => ({
+          ...prev,
+          [type === "fan1" ? "f1" : "f2"]: isCurrentlyOn ? 1 : 0,
+        }));
+        alert("Cihaza ulaşılamadı!");
+      });
   };
 
-  // LCD Mesaj (Endpoint: /msg?text=...)
   const sendLcdMsg = () => {
-    axios.get(`${API_BASE}/msg?text=${encodeURIComponent(lcdMsg)}`).then(() => {
-      alert("LCD'ye iletildi!");
-      setLcdMsg("");
-    });
+    axios
+      .get(`${API_BASE}/msg`, { params: { text: lcdMsg } }) // -> /api/msg?text=...
+      .then(() => {
+        alert("LCD'ye iletildi!");
+        setLcdMsg("");
+      })
+      .catch((err) => console.error("LCD msg hatası:", err));
   };
 
-  // Tarama (Endpoint: /capture)
   const triggerScan = () => {
     axios
-      .get(`${API_BASE}/capture`)
-      .then(() => alert("Tarama Komutu Gönderildi."));
+      .get(`${API_BASE}/capture`) // -> /api/capture
+      .then(() => alert("Tarama Komutu Gönderildi."))
+      .catch((err) => console.error("Capture hatası:", err));
   };
 
   return (
     <div className="min-h-screen bg-[#f4f7f6] font-sans text-[#2d3436]">
-      {/* LOGIN OVERLAY (Aynen Korundu) */}
       <div
         className={`fixed inset-0 bg-white z-[9999] flex items-center justify-center transition-transform duration-[800ms] ease-[cubic-bezier(0.85,0,0.15,1)] ${isLoggedIn ? "-translate-y-full" : "translate-y-0"}`}
       >
@@ -95,7 +116,6 @@ function App() {
         </div>
       </div>
 
-      {/* HEADER */}
       <header className="bg-white px-10 py-4 shadow-sm flex justify-between items-center">
         <h2 className="text-xl font-bold m-0">
           Antares{" "}
@@ -106,9 +126,7 @@ function App() {
         </div>
       </header>
 
-      {/* MAIN CONTAINER */}
       <main className="max-w-[1300px] mx-auto my-5 px-5 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 pb-10">
-        {/* Sol Taraf: Görseller */}
         <section className="space-y-6">
           <div className="bg-white p-5 rounded-[20px] shadow-sm">
             <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-4 block">
@@ -116,7 +134,7 @@ function App() {
             </span>
             <div className="w-full h-[450px] bg-[#111] rounded-2xl overflow-hidden">
               <img
-                src={`${API_BASE}/stream`}
+                src={`${API_BASE}/stream`} // -> /api/stream
                 alt="Live Feed"
                 className="w-full h-full object-contain"
               />
@@ -146,9 +164,7 @@ function App() {
           </div>
         </section>
 
-        {/* Sağ Taraf: Kontroller */}
         <section className="space-y-6">
-          {/* Telemetri */}
           <div className="bg-white p-6 rounded-[20px] shadow-sm">
             <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-6 block">
               Anlık Telemetri
@@ -172,6 +188,7 @@ function App() {
                 </span>
               </div>
             </div>
+
             <div className="mt-4 p-4 bg-slate-50 border-l-4 border-[#10ac84] rounded-r-xl">
               <span className="text-[10px] text-slate-400 font-bold uppercase">
                 Toprak Bağlamı
@@ -182,7 +199,6 @@ function App() {
             </div>
           </div>
 
-          {/* Donanım Butonları */}
           <div className="bg-white p-6 rounded-[20px] shadow-sm">
             <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-6 block">
               Donanım Kontrolü
@@ -194,18 +210,27 @@ function App() {
                 </span>
                 <button
                   onClick={() => toggleHardware("fan1")}
-                  className={`w-full py-3 rounded-xl font-black text-xs transition-all ${data.f1 === 1 ? "bg-[#10ac84] text-white shadow-lg shadow-green-100" : "bg-[#eee] text-slate-400"}`}
+                  className={`w-full py-3 rounded-xl font-black text-xs transition-all ${
+                    data.f1 === 1
+                      ? "bg-[#10ac84] text-white shadow-lg shadow-green-100"
+                      : "bg-[#eee] text-slate-400"
+                  }`}
                 >
                   {data.f1 === 1 ? "AÇIK" : "KAPALI"}
                 </button>
               </div>
+
               <div className="bg-[#fcfcfc] p-4 rounded-2xl border border-[#f0f0f0] text-center">
                 <span className="text-[10px] font-bold text-slate-400 block mb-3 uppercase">
                   Düz Fan
                 </span>
                 <button
                   onClick={() => toggleHardware("fan2")}
-                  className={`w-full py-3 rounded-xl font-black text-xs transition-all ${data.f2 === 1 ? "bg-[#10ac84] text-white shadow-lg shadow-green-100" : "bg-[#eee] text-slate-400"}`}
+                  className={`w-full py-3 rounded-xl font-black text-xs transition-all ${
+                    data.f2 === 1
+                      ? "bg-[#10ac84] text-white shadow-lg shadow-green-100"
+                      : "bg-[#eee] text-slate-400"
+                  }`}
                 >
                   {data.f2 === 1 ? "AÇIK" : "KAPALI"}
                 </button>
@@ -213,7 +238,6 @@ function App() {
             </div>
           </div>
 
-          {/* LCD Terminal */}
           <div className="bg-white p-6 rounded-[20px] shadow-sm">
             <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-6 block">
               LCD Terminal Mesajı
