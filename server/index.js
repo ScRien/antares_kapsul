@@ -411,7 +411,7 @@ app.get("/api/generate-report", (req, res) => {
     });
 
   doc.moveDown(2);
-  doc.path("M 50 95 L 545 95").lineWidth(2).strokeColor("#3a7bd5").stroke();
+  doc.path("M 50 100 L 545 95").lineWidth(2).strokeColor("#3a7bd5").stroke();
 
   // --- ÖZET KARTLARI (Kutu İçinde Değerler) ---
   const latest = sensorHistory[sensorHistory.length - 1] || {};
