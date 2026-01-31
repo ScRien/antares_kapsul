@@ -20,6 +20,136 @@ let hardwareState = {
   f2: 0,
 };
 
+// ============= STATUS PAGE (HTML/CSS) =============
+app.get("/", (req, res) => {
+  const latest = sensorHistory[sensorHistory.length - 1] || {};
+  const pendingCount = commandQueue.filter(
+    (c) => c.status === "pending",
+  ).length;
+  const ackedCount = commandQueue.filter((c) => c.status === "ack").length;
+
+  const html = `
+  <!DOCTYPE html>
+  <html lang="tr">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>ANTARES | Backend Status</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+      <style>
+          @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&display=swap');
+          body { font-family: 'Space Grotesk', sans-serif; background-color: #0f172a; color: #f8fafc; }
+          .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+          .status-pulse { animation: pulse 2s infinite; }
+          @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+          .accent-gradient { background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%); }
+      </style>
+  </head>
+  <body class="p-4 md:p-8">
+      <div class="max-w-5xl mx-auto">
+          <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+              <div>
+                  <h1 class="text-4xl font-bold tracking-tighter text-transparent bg-clip-text accent-gradient">
+                      ANTARES <span class="text-white opacity-20 text-xl">v2.0</span>
+                  </h1>
+                  <p class="text-slate-400 text-sm uppercase tracking-widest mt-1">Akıllı Koruma Kapsülü Kontrol Merkezi</p>
+              </div>
+              <div class="flex items-center gap-3 px-4 py-2 rounded-full glass">
+                  <div class="w-3 h-3 bg-emerald-500 rounded-full status-pulse"></div>
+                  <span class="text-sm font-medium">Sistem Çevrimiçi</span>
+              </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div class="glass p-6 rounded-3xl">
+                  <p class="text-slate-400 text-xs uppercase mb-1">Sıcaklık</p>
+                  <h2 class="text-3xl font-bold">${latest.temperature || "--"}°C</h2>
+              </div>
+              <div class="glass p-6 rounded-3xl">
+                  <p class="text-slate-400 text-xs uppercase mb-1">Nem Oranı</p>
+                  <h2 class="text-3xl font-bold">%${latest.humidity || "--"}</h2>
+              </div>
+              <div class="glass p-6 rounded-3xl">
+                  <p class="text-slate-400 text-xs uppercase mb-1">Bekleyen Komut</p>
+                  <h2 class="text-3xl font-bold text-amber-400">${pendingCount}</h2>
+              </div>
+              <div class="glass p-6 rounded-3xl border-emerald-500/30">
+                  <p class="text-slate-400 text-xs uppercase mb-1">Onaylanan (ACK)</p>
+                  <h2 class="text-3xl font-bold text-emerald-400">${ackedCount}</h2>
+              </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div class="lg:col-span-2 glass rounded-[2rem] p-8">
+                  <h3 class="text-xl font-bold mb-6 flex items-center gap-3">
+                      <i class="fa-solid fa-list-check text-sky-400"></i> Komut Havuzu (Queue)
+                  </h3>
+                  <div class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                      ${
+                        commandQueue.length === 0
+                          ? '<p class="text-slate-500 italic">Şu an sırada komut yok...</p>'
+                          : commandQueue
+                              .slice()
+                              .reverse()
+                              .map(
+                                (cmd) => `
+                          <div class="flex justify-between items-center p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50">
+                              <div class="flex items-center gap-4">
+                                  <span class="text-xs font-mono text-slate-500">#${cmd.id}</span>
+                                  <span class="px-3 py-1 rounded-lg bg-sky-500/10 text-sky-400 text-xs font-bold uppercase">${cmd.type}</span>
+                                  <span class="font-medium">${cmd.value}</span>
+                              </div>
+                              <span class="text-[10px] px-2 py-1 rounded bg-slate-700 ${cmd.status === "ack" ? "text-emerald-400" : "text-amber-400"}">
+                                  ${cmd.status.toUpperCase()}
+                              </span>
+                          </div>
+                      `,
+                              )
+                              .join("")
+                      }
+                  </div>
+              </div>
+
+              <div class="glass rounded-[2rem] p-8">
+                  <h3 class="text-xl font-bold mb-6 flex items-center gap-3">
+                      <i class="fa-solid fa-microchip text-rose-400"></i> Donanım Durumu
+                  </h3>
+                  <div class="space-y-6">
+                      <div class="flex justify-between items-center">
+                          <span class="text-slate-400">Fan 1 (Salyangoz)</span>
+                          <span class="px-4 py-1 rounded-full font-bold ${hardwareState.f1 ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-700 text-slate-500"}">
+                              ${hardwareState.f1 ? "AÇIK" : "KAPALI"}
+                          </span>
+                      </div>
+                      <div class="flex justify-between items-center">
+                          <span class="text-slate-400">Fan 2 (Düz)</span>
+                          <span class="px-4 py-1 rounded-full font-bold ${hardwareState.f2 ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-700 text-slate-500"}">
+                              ${hardwareState.f2 ? "AÇIK" : "KAPALI"}
+                          </span>
+                      </div>
+                      <div class="pt-6 border-t border-slate-700/50">
+                          <p class="text-xs text-slate-500 mb-2 italic">Son Veri Akışı:</p>
+                          <p class="text-sm font-mono text-slate-300">${latest.timestamp || "Veri bekleniyor..."}</p>
+                      </div>
+                  </div>
+                  
+                  <a href="/api/generate-report" class="mt-8 w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 transition-all p-4 rounded-2xl border border-white/10 text-sm font-bold">
+                      <i class="fa-solid fa-file-pdf text-rose-500"></i> SON RAPORU İNDİR
+                  </a>
+              </div>
+          </div>
+
+          <footer class="mt-12 text-center text-slate-600 text-xs">
+              Antares Cloud Systems © 2026 | Arkeolojik Koruma ve İzleme Teknolojileri
+          </footer>
+      </div>
+  </body>
+  </html>
+  `;
+  res.send(html);
+});
+
 // ============= API ENDPOINTS =============
 
 // ✅ v2: /api/data - Gerçek durum (Arduino ACK'tan)
