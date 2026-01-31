@@ -1,15 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import {
-  Thermometer,
-  Droplets,
-  Activity,
-  Camera,
-  Send,
-  Power,
-} from "lucide-react";
 
-const API_BASE = "https://antares-backend.onrender.com/api"; // Render Backend Linkin
+// API_BASE sonundaki /api kısmını sildik, çünkü backend direkt kök dizinden çalışıyor
+const API_BASE = "https://antares-backend.onrender.com";
 
 function App() {
   const [data, setData] = useState({
@@ -20,193 +13,229 @@ function App() {
     f2: 0,
   });
   const [lcdMsg, setLcdMsg] = useState("");
+  const [passInput, setPassInput] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [pass, setPass] = useState("");
 
-  // Canlı Telemetri Verisi Çekme (2 saniyede bir)
+  // Veri Çekme (Endpoint: /data)
   useEffect(() => {
-    if (!isLoggedIn) return;
     const interval = setInterval(() => {
       axios
         .get(`${API_BASE}/data`)
-        .then((res) => setData(res.data))
-        .catch((err) => console.error("Veri hatası:", err));
+        .then((res) => {
+          // Eğer gelen veri bir nesne ise state'i güncelle
+          if (res.data && typeof res.data === "object") {
+            setData(res.data);
+          }
+        })
+        .catch((err) => console.log("Veri yolu hatalı veya sunucu kapalı."));
     }, 2000);
     return () => clearInterval(interval);
-  }, [isLoggedIn]);
+  }, []);
 
-  const handleLogin = () => {
-    if (pass === "1234") setIsLoggedIn(true);
+  const checkLogin = () => {
+    if (passInput === "1234") setIsLoggedIn(true);
     else alert("Hatalı Giriş!");
   };
 
-  const sendCommand = (cmd) => {
-    axios.get(`${API_BASE}/cmd?${cmd}=toggle`);
+  // Donanım Kontrolü (Endpoint: /cmd?fanX=ON/OFF)
+  const toggleHardware = (type) => {
+    // Mevcut duruma göre tam tersini gönder (1 ise OFF, 0 ise ON)
+    const currentState = type === "fan1" ? data.f1 : data.f2;
+    const val = currentState === 1 ? "OFF" : "ON";
+
+    axios
+      .get(`${API_BASE}/cmd?${type}=${val}`)
+      .then(() => {
+        console.log(`${type} komutu gönderildi: ${val}`);
+      })
+      .catch((err) => console.error("Komut hatası:", err));
   };
 
-  const sendLcd = () => {
-    axios.get(`${API_BASE}/msg?text=${encodeURIComponent(lcdMsg)}`);
-    setLcdMsg("");
+  // LCD Mesaj (Endpoint: /msg?text=...)
+  const sendLcdMsg = () => {
+    axios.get(`${API_BASE}/msg?text=${encodeURIComponent(lcdMsg)}`).then(() => {
+      alert("LCD'ye iletildi!");
+      setLcdMsg("");
+    });
   };
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <div className="bg-white p-8 rounded-3xl shadow-xl w-80 text-center">
-          <h2 className="text-2xl font-bold text-cyan-500 mb-4">ANTARES</h2>
+  // Tarama (Endpoint: /capture)
+  const triggerScan = () => {
+    axios
+      .get(`${API_BASE}/capture`)
+      .then(() => alert("Tarama Komutu Gönderildi."));
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f4f7f6] font-sans text-[#2d3436]">
+      {/* LOGIN OVERLAY (Aynen Korundu) */}
+      <div
+        className={`fixed inset-0 bg-white z-[9999] flex items-center justify-center transition-transform duration-[800ms] ease-[cubic-bezier(0.85,0,0.15,1)] ${isLoggedIn ? "-translate-y-full" : "translate-y-0"}`}
+      >
+        <div className="text-center p-10 max-w-[350px] w-[90%]">
+          <h2 className="text-[#00d2ff] text-3xl font-bold mb-2 tracking-tighter">
+            ANTARES
+          </h2>
+          <p className="mb-6 text-slate-500 text-sm">
+            Artifact Protection System Login
+          </p>
           <input
             type="password"
-            className="w-full p-3 border-2 rounded-xl mb-4 outline-none focus:border-cyan-400"
             placeholder="Passcode"
-            onChange={(e) => setPass(e.target.value)}
+            className="w-full p-3 border-2 border-slate-100 rounded-xl mb-4 outline-none focus:border-[#00d2ff] text-center"
+            onChange={(e) => setPassInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && checkLogin()}
           />
           <button
-            onClick={handleLogin}
-            className="w-full bg-cyan-500 text-white p-3 rounded-xl font-bold"
+            onClick={checkLogin}
+            className="w-full bg-[#00d2ff] text-white p-4 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all"
           >
-            Giriş Yap
+            GİRİŞ YAP
           </button>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 lg:p-10 font-sans">
-      {/* Header */}
-      <header className="max-w-7xl mx-auto flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-light">
-            Antares{" "}
-            <span className="font-bold text-cyan-500">Lab Interface</span>
-          </h1>
-          <p className="text-slate-400 text-sm italic">
-            Artifact Protection System v2.0
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-emerald-500 font-bold animate-pulse">
-          <Activity size={20} /> SİSTEM ÇEVRİMİÇİ
+      {/* HEADER */}
+      <header className="bg-white px-10 py-4 shadow-sm flex justify-between items-center">
+        <h2 className="text-xl font-bold m-0">
+          Antares{" "}
+          <span className="font-light text-slate-400">Lab Interface</span>
+        </h2>
+        <div className="text-[#10ac84] font-bold animate-pulse flex items-center gap-2 text-sm uppercase tracking-widest">
+          <span className="text-lg">●</span> SİSTEM ÇEVRİMİÇİ
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Sol Kolon: Görsel Takip */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-[30px] shadow-sm border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block">
-              Canlı Yayın & Dijital İkiz
+      {/* MAIN CONTAINER */}
+      <main className="max-w-[1300px] mx-auto my-5 px-5 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 pb-10">
+        {/* Sol Taraf: Görseller */}
+        <section className="space-y-6">
+          <div className="bg-white p-5 rounded-[20px] shadow-sm">
+            <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-4 block">
+              Canlı Yayın (Dijital İkiz)
             </span>
-            <div className="aspect-video bg-black rounded-2xl overflow-hidden shadow-inner">
+            <div className="w-full h-[450px] bg-[#111] rounded-2xl overflow-hidden">
               <img
                 src={`${API_BASE}/stream`}
                 alt="Live Feed"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
             </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-[20px] shadow-sm">
+            <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-4 block">
+              360° Tarama Arşivi
+            </span>
+            <div className="flex gap-3 overflow-x-auto pb-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="w-[120px] h-[90px] bg-[#f9f9f9] border-2 border-dashed border-[#eee] rounded-xl flex-shrink-0 flex items-center justify-center text-[#ccc] text-[10px] hover:border-[#00d2ff] transition-all cursor-pointer"
+                >
+                  FOTO {i}
+                </div>
+              ))}
+            </div>
             <button
-              onClick={() => axios.get(`${API_BASE}/capture`)}
-              className="w-full mt-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
+              onClick={triggerScan}
+              className="w-full mt-2 bg-[#10ac84] text-white p-4 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all uppercase text-sm tracking-widest"
             >
-              <Camera size={20} /> YENİ 360° TARAMA BAŞLAT
+              Yeni 360° Tarama Başlat
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* Sağ Kolon: Telemetri & Kontrol */}
-        <div className="space-y-6">
-          {/* Telemetri Kartı */}
-          <div className="bg-white p-6 rounded-[30px] shadow-sm border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block">
+        {/* Sağ Taraf: Kontroller */}
+        <section className="space-y-6">
+          {/* Telemetri */}
+          <div className="bg-white p-6 rounded-[20px] shadow-sm">
+            <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-6 block">
               Anlık Telemetri
             </span>
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-orange-50 rounded-2xl border-l-4 border-orange-400">
-                <Thermometer className="text-orange-500 mb-2" size={24} />
-                <span className="text-xs text-orange-700 font-bold">
+              <div className="p-4 bg-slate-50 border-l-4 border-[#ff9f43] rounded-r-xl">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">
                   Sıcaklık
                 </span>
-                <div className="text-2xl font-light">{data.t}°C</div>
+                <span className="text-3xl font-light block mt-1">
+                  {data.t}
+                  <small className="text-sm">°C</small>
+                </span>
               </div>
-              <div className="p-4 bg-cyan-50 rounded-2xl border-l-4 border-cyan-400">
-                <Droplets className="text-cyan-500 mb-2" size={24} />
-                <span className="text-xs text-cyan-700 font-bold">Nem</span>
-                <div className="text-2xl font-light">%{data.h}</div>
+              <div className="p-4 bg-slate-50 border-l-4 border-[#00d2ff] rounded-r-xl">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">
+                  Nem
+                </span>
+                <span className="text-3xl font-light block mt-1">
+                  %{data.h}
+                </span>
               </div>
             </div>
-            <div className="mt-4 p-4 bg-emerald-50 rounded-2xl border-l-4 border-emerald-500">
-              <span className="text-xs text-emerald-700 font-bold block">
-                Toprak Bağlamı (Referans)
+            <div className="mt-4 p-4 bg-slate-50 border-l-4 border-[#10ac84] rounded-r-xl">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">
+                Toprak Bağlamı
               </span>
-              <div className="text-lg font-medium text-emerald-900">
+              <span className="text-lg font-semibold block mt-1 text-[#10ac84]">
                 {data.s}
+              </span>
+            </div>
+          </div>
+
+          {/* Donanım Butonları */}
+          <div className="bg-white p-6 rounded-[20px] shadow-sm">
+            <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-6 block">
+              Donanım Kontrolü
+            </span>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-[#fcfcfc] p-4 rounded-2xl border border-[#f0f0f0] text-center">
+                <span className="text-[10px] font-bold text-slate-400 block mb-3 uppercase">
+                  Salyangoz
+                </span>
+                <button
+                  onClick={() => toggleHardware("fan1")}
+                  className={`w-full py-3 rounded-xl font-black text-xs transition-all ${data.f1 === 1 ? "bg-[#10ac84] text-white shadow-lg shadow-green-100" : "bg-[#eee] text-slate-400"}`}
+                >
+                  {data.f1 === 1 ? "AÇIK" : "KAPALI"}
+                </button>
+              </div>
+              <div className="bg-[#fcfcfc] p-4 rounded-2xl border border-[#f0f0f0] text-center">
+                <span className="text-[10px] font-bold text-slate-400 block mb-3 uppercase">
+                  Düz Fan
+                </span>
+                <button
+                  onClick={() => toggleHardware("fan2")}
+                  className={`w-full py-3 rounded-xl font-black text-xs transition-all ${data.f2 === 1 ? "bg-[#10ac84] text-white shadow-lg shadow-green-100" : "bg-[#eee] text-slate-400"}`}
+                >
+                  {data.f2 === 1 ? "AÇIK" : "KAPALI"}
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Donanım Kontrolü */}
-          <div className="bg-white p-6 rounded-[30px] shadow-sm border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block">
-              Otonom Donanım Kontrolü
+          {/* LCD Terminal */}
+          <div className="bg-white p-6 rounded-[20px] shadow-sm">
+            <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-6 block">
+              LCD Terminal Mesajı
             </span>
-            <div className="grid grid-cols-1 gap-3">
-              <HardwareButton
-                label="Salyangoz Fan"
-                active={data.f1}
-                onClick={() => sendCommand("fan1")}
-              />
-              <HardwareButton
-                label="Düz Soğutma Fanı"
-                active={data.f2}
-                onClick={() => sendCommand("fan2")}
-              />
-            </div>
+            <input
+              type="text"
+              placeholder="Ekrana yazılacak mesaj..."
+              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl mb-4 outline-none focus:border-[#00d2ff] text-sm"
+              value={lcdMsg}
+              onChange={(e) => setLcdMsg(e.target.value)}
+            />
+            <button
+              onClick={sendLcdMsg}
+              className="w-full bg-[#00d2ff] text-white p-4 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all text-sm tracking-widest uppercase"
+            >
+              Mesajı Gönder
+            </button>
           </div>
-
-          {/* Terminal Mesajı */}
-          <div className="bg-white p-6 rounded-[30px] shadow-sm border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block">
-              LCD Terminal
-            </span>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={lcdMsg}
-                onChange={(e) => setLcdMsg(e.target.value)}
-                className="flex-1 p-3 bg-slate-50 border rounded-xl outline-none focus:border-cyan-400 text-sm"
-                placeholder="Mesaj yaz..."
-              />
-              <button
-                onClick={sendLcd}
-                className="bg-cyan-500 text-white p-3 rounded-xl hover:bg-cyan-600 transition-colors"
-              >
-                <Send size={18} />
-              </button>
-            </div>
-          </div>
-        </div>
+        </section>
       </main>
     </div>
   );
 }
-
-// Yardımcı Alt Bileşen: Donanım Butonu
-const HardwareButton = ({ label, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`w-full p-4 rounded-2xl flex justify-between items-center transition-all ${
-      active
-        ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200"
-        : "bg-slate-100 text-slate-500"
-    }`}
-  >
-    <span className="font-bold text-sm">{label}</span>
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] uppercase font-black">
-        {active ? "AÇIK" : "KAPALI"}
-      </span>
-      <Power size={16} />
-    </div>
-  </button>
-);
 
 export default App;
