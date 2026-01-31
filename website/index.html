@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Antares Capsule | Pro Lab</title>
+    <style>
+      :root {
+        --primary: #00d2ff;
+        --secondary: #ff9f43;
+        --success: #10ac84;
+        --danger: #ee5253;
+        --bg: #f4f7f6;
+        --white: #ffffff;
+        --text: #2d3436;
+      }
+
+      body {
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        overflow-x: hidden;
+      }
+
+      /* --- LOGIN --- */
+      #login-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--white);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        transition: transform 0.8s cubic-bezier(0.85, 0, 0.15, 1);
+      }
+      .login-card {
+        text-align: center;
+        padding: 40px;
+        max-width: 350px;
+        width: 90%;
+      }
+      input[type="password"],
+      input[type="text"] {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #eee;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        outline: none;
+        transition: 0.3s;
+        box-sizing: border-box;
+      }
+
+      /* --- DASHBOARD --- */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--white);
+        padding: 15px 40px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+      }
+      .main-container {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 25px;
+        max-width: 1300px;
+        margin: 20px auto;
+        padding: 0 20px;
+      }
+
+      .card {
+        background: var(--white);
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        margin-bottom: 20px;
+      }
+      .section-title {
+        font-size: 0.8em;
+        font-weight: 800;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 15px;
+        display: block;
+        border-bottom: 1px solid #f0f0f0;
+        padding-bottom: 5px;
+      }
+
+      .stream-window {
+        width: 100%;
+        height: 400px;
+        background: #222;
+        border-radius: 15px;
+        overflow: hidden;
+      }
+
+      /* Galeri */
+      .gallery-strip {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        padding: 10px 0;
+      }
+      .thumb {
+        width: 100px;
+        height: 75px;
+        background: #eee;
+        border-radius: 10px;
+        flex-shrink: 0;
+        cursor: pointer;
+        object-fit: cover;
+        border: 2px solid transparent;
+        transition: 0.2s;
+      }
+      .thumb:hover {
+        border-color: var(--primary);
+        transform: scale(1.05);
+      }
+
+      /* Kontrol Elemanları */
+      .control-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-top: 10px;
+      }
+      .ctrl-item {
+        background: #f9f9f9;
+        padding: 15px;
+        border-radius: 15px;
+        text-align: center;
+        border: 1px solid #eee;
+      }
+      .toggle-btn {
+        width: 100%;
+        background: #ddd;
+        border: none;
+        padding: 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 10px;
+        transition: 0.3s;
+      }
+      .toggle-btn.active {
+        background: var(--success);
+        color: white;
+      }
+
+      /* Veri Kartları */
+      .data-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+      }
+      .mini-card {
+        background: #fff;
+        padding: 15px;
+        border-radius: 15px;
+        border-left: 5px solid var(--primary);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+      }
+      .val {
+        font-size: 1.8em;
+        font-weight: 300;
+        display: block;
+        margin-top: 5px;
+      }
+
+      .btn-pro {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 15px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: bold;
+        width: 100%;
+        transition: 0.3s;
+      }
+      .btn-pro:hover {
+        filter: brightness(1.1);
+        transform: translateY(-2px);
+      }
+
+      .live-dot {
+        color: var(--success);
+        animation: pulse 2s infinite;
+        font-weight: bold;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login-overlay">
+      <div class="login-card">
+        <h2 style="color: var(--primary)">ANTARES</h2>
+        <p>Artifact Protection System Login</p>
+        <input type="password" id="passInput" placeholder="Passcode" />
+        <button class="btn-pro" onclick="checkLogin()">GİRİŞ YAP</button>
+      </div>
+    </div>
+
+    <div class="header">
+      <h2 style="margin: 0">
+        Antares <span style="font-weight: 300">Lab Interface</span>
+      </h2>
+      <div class="live-dot">● SİSTEM ÇEVRİMİÇİ</div>
+    </div>
+
+    <div class="main-container">
+      <div class="visual-section">
+        <div class="card">
+          <span class="section-title">Canlı Yayın (Dijital İkiz)</span>
+          <div class="stream-window">
+            <img
+              src="/stream"
+              style="width: 100%; height: 100%; object-fit: cover"
+              alt="Live Feed"
+            />
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="section-title">360° Tarama Arşivi</span>
+          <div class="gallery-strip" id="gallery">
+            <div
+              class="thumb"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #ccc;
+                font-size: 12px;
+              "
+            >
+              Foto 1
+            </div>
+            <div
+              class="thumb"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #ccc;
+                font-size: 12px;
+              "
+            >
+              Foto 2
+            </div>
+            <div
+              class="thumb"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #ccc;
+                font-size: 12px;
+              "
+            >
+              Foto 3
+            </div>
+          </div>
+          <button
+            class="btn-pro"
+            style="margin-top: 15px; background: var(--success)"
+            onclick="triggerScan()"
+          >
+            YENİ 360° TARAMA BAŞLAT
+          </button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <div class="card">
+          <span class="section-title">Anlık Telemetri</span>
+          <div class="data-row">
+            <div class="mini-card" style="border-left-color: var(--secondary)">
+              <span class="label">Sıcaklık</span>
+              <span class="val" id="t_val">--.-°C</span>
+            </div>
+            <div class="mini-card">
+              <span class="label">Nem</span>
+              <span class="val" id="h_val">--%</span>
+            </div>
+          </div>
+          <div
+            class="mini-card"
+            style="margin-top: 15px; border-left-color: var(--success)"
+          >
+            <span class="label">Toprak Bağlamı</span>
+            <span class="val" id="s_val" style="font-size: 1.2em"
+              >Ölçülüyor...</span
+            >
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="section-title">Donanım Kontrolü</span>
+          <div class="control-grid">
+            <div class="ctrl-item">
+              <span class="label">Salyangoz</span>
+              <button
+                id="f1_btn"
+                class="toggle-btn"
+                onclick="toggleHardware('fan1')"
+              >
+                KAPALI
+              </button>
+            </div>
+            <div class="ctrl-item">
+              <span class="label">Düz Fan</span>
+              <button
+                id="f2_btn"
+                class="toggle-btn"
+                onclick="toggleHardware('fan2')"
+              >
+                KAPALI
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="section-title">LCD Terminal Mesajı</span>
+          <input
+            type="text"
+            id="lcdMsg"
+            placeholder="Ekrana yazılacak mesaj..."
+          />
+          <button class="btn-pro" onclick="sendLcdMsg()">MESAJI GÖNDER</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function checkLogin() {
+        if (document.getElementById("passInput").value === "1234") {
+          document.getElementById("login-overlay").style.transform =
+            "translateY(-100%)";
+          document.body.style.overflow = "auto";
+        } else {
+          alert("Hatalı Giriş!");
+        }
+      }
+
+      function toggleHardware(type) {
+        const btn =
+          type === "fan1"
+            ? document.getElementById("f1_btn")
+            : document.getElementById("f2_btn");
+        const state = btn.innerText === "KAPALI" ? "ACIK" : "KAPALI";
+        const val = state === "ACIK" ? "ON" : "OFF";
+
+        fetch(`/cmd?${type}=${val}`).then(() => {
+          btn.innerText = state;
+          btn.classList.toggle("active");
+        });
+      }
+
+      function sendLcdMsg() {
+        const msg = document.getElementById("lcdMsg").value;
+        fetch(`/msg?text=${encodeURIComponent(msg)}`).then(() => {
+          alert("LCD'ye iletildi!");
+          document.getElementById("lcdMsg").value = "";
+        });
+      }
+
+      function triggerScan() {
+        fetch("/capture").then(() => alert("Tarama Komutu Gönderildi."));
+      }
+
+      setInterval(function () {
+        fetch("/data")
+          .then((r) => r.json())
+          .then((d) => {
+            document.getElementById("t_val").innerText = d.t + "°C";
+            document.getElementById("h_val").innerText = d.h + "%";
+            document.getElementById("s_val").innerText = d.s;
+          })
+          .catch((e) => {});
+      }, 2000);
+    </script>
+  </body>
+</html>

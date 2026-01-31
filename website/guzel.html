@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Antares Capsule | Lab</title>
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #f4f7f6;
+        color: #333;
+        margin: 0;
+        padding: 30px;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #e0e0e0;
+        margin-bottom: 30px;
+        padding-bottom: 10px;
+      }
+      .main-container {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 25px;
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+      .camera-section {
+        background: white;
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+      }
+      .stream-window {
+        width: 100%;
+        height: 400px;
+        background: #eee;
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+      }
+      .data-card {
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.04);
+        margin-bottom: 20px;
+        border-left: 5px solid #00d2ff;
+      }
+      .temp-card {
+        border-left-color: #ff9f43;
+      }
+      .soil-card {
+        border-left-color: #10ac84;
+      }
+      .label {
+        font-size: 0.8em;
+        font-weight: bold;
+        color: #777;
+        letter-spacing: 1px;
+      }
+      .value {
+        font-size: 2.2em;
+        font-weight: 300;
+        color: #2d3436;
+        margin: 5px 0;
+      }
+      .btn {
+        background: #00d2ff;
+        color: white;
+        border: none;
+        padding: 15px 25px;
+        border-radius: 12px;
+        cursor: pointer;
+        width: 100%;
+        font-weight: bold;
+        transition: 0.3s;
+      }
+      .btn:hover {
+        background: #0099cc;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h2 style="margin: 0; color: #2d3436">
+        Antares <span style="font-weight: 300">Smart Capsule</span>
+      </h2>
+      <div style="color: #10ac84; font-size: 0.9em">● SISTEM AKTIF</div>
+    </div>
+    <div class="main-container">
+      <div class="camera-section">
+        <div class="stream-window">CANLI YAYIN AKTIF</div>
+        <p style="text-align: center">
+          <button class="btn">360° TARAMA ANALIZINI BASLAT</button>
+        </p>
+      </div>
+      <div class="data-column">
+        <div class="data-card temp-card">
+          <div class="label">SICAKLIK</div>
+          <div class="value">
+            24.1 <small style="font-size: 0.5em">°C</small>
+          </div>
+        </div>
+        <div class="data-card">
+          <div class="label">NEM</div>
+          <div class="value">58 <small style="font-size: 0.5em">%</small></div>
+        </div>
+        <div class="data-card soil-card">
+          <div class="label">BAĞLAM (TOPRAK)</div>
+          <div class="value" style="font-size: 1.5em">STABIL / ISLAK</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
