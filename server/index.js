@@ -370,31 +370,40 @@ app.get("/api/queue-status", (req, res) => {
 // ============= RAPOR ENDPOINTS =============
 
 app.get("/api/generate-report", (req, res) => {
-  const doc = new PDFDocument({ margin: 50 }); // Kenar payı eklendi
-  const fileName = `Antares_Analiz_Raporu_${Date.now()}.pdf`;
+  const doc = new PDFDocument({ margin: 50 });
+  const now = Date.now();
+  const fileName = `Antares_Analiz_Raporu_${now}.pdf`;
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
   doc.pipe(res);
 
+  // ✅ Türkçe destekleyen fontlar
+  // Not: Sunucunda bu yolların doğru olduğundan emin ol
+  const fontPath = "./fonts/Roboto-Regular.ttf";
+  const fontBoldPath = "./fonts/Roboto-Bold.ttf";
+
   // --- ARKA PLAN VE ÇERÇEVE ---
   doc.rect(20, 20, 555, 780).strokeColor("#e2e8f0").lineWidth(1).stroke();
 
   // --- HEADER SECTION ---
   doc
+    .font(fontBoldPath)
     .fillColor("#0f172a")
     .fontSize(24)
     .text("ANTARES", 50, 50, { lineGap: 5 })
+    .font(fontPath)
     .fontSize(10)
     .fillColor("#64748b")
-    .text("AKILLI KORUMA KAPSÜLÜ | DİJİTAL İKİZ SİSTEMİ", { tracking: 1.5 });
+    .text("AKILLI KORUMA KAPSÜLÜ | DİJİTAL İKİZ SİSTEMİ", { tracking: 1.2 });
 
   // Sağ üst köşe - Rapor Bilgileri
   doc
+    .font(fontPath)
     .fillColor("#0f172a")
     .fontSize(8)
-    .text(`RAPOR ID: #ANT-${Date.now().toString().slice(-6)}`, 400, 50, {
+    .text(`RAPOR ID: #ANT-${now.toString().slice(-6)}`, 400, 50, {
       align: "right",
     })
     .text(`TARİH: ${new Date().toLocaleString("tr-TR")}`, 400, 62, {
@@ -412,11 +421,15 @@ app.get("/api/generate-report", (req, res) => {
     .fill("#f8fafc")
     .strokeColor("#cbd5e1")
     .stroke();
-  doc.fillColor("#64748b").fontSize(8).text("SON SICAKLIK", 65, 125);
+  doc
+    .font(fontPath)
+    .fillColor("#64748b")
+    .fontSize(8)
+    .text("SON SICAKLIK", 65, 125);
   doc
     .fillColor("#0f172a")
     .fontSize(18)
-    .text(`${latest.temperature || "--"}°C`, 65, 140);
+    .text(`${latest.temperature ?? "--"}°C`, 65, 140);
 
   doc
     .roundedRect(220, 110, 150, 60, 10)
@@ -427,7 +440,7 @@ app.get("/api/generate-report", (req, res) => {
   doc
     .fillColor("#0f172a")
     .fontSize(18)
-    .text(`%${latest.humidity || "--"}`, 235, 140);
+    .text(`%${latest.humidity ?? "--"}`, 235, 140);
 
   doc
     .roundedRect(390, 110, 155, 60, 10)
@@ -435,24 +448,35 @@ app.get("/api/generate-report", (req, res) => {
     .strokeColor("#cbd5e1")
     .stroke();
   doc.fillColor("#64748b").fontSize(8).text("MİNYATÜR DURUMU", 405, 125);
+
+  const statusText =
+    latest.system_status || latest.status || latest.st || "GÜVENLİ";
+  const statusColor =
+    statusText === "GÜVENLİ" || statusText === "OK" || statusText === "NORMAL"
+      ? "#10ac84"
+      : "#f59e0b";
+
   doc
-    .fillColor("#10ac84")
+    .fillColor(statusColor)
+    .font(fontBoldPath)
     .fontSize(12)
-    .text("GÜVENLİ", 405, 145, { bold: true });
+    .text(statusText, 405, 145);
 
   doc.moveDown(6);
 
-  // --- VERİ TABLOSU ---
+  // --- BAŞLIK ---
   doc
+    .font(fontBoldPath)
     .fontSize(12)
     .fillColor("#1e293b")
     .text("TRANSFER SÜRECİ DETAYLI ANALİZ GÜNLÜĞÜ", 50, 200);
 
-  // Tablo Başlıkları
+  // --- VERİ TABLOSU ---
   const tableTop = 230;
   doc.rect(50, tableTop, 495, 20).fill("#1e293b");
 
   doc
+    .font(fontBoldPath)
     .fillColor("#ffffff")
     .fontSize(8)
     .text("ZAMAN", 60, tableTop + 7)
@@ -464,20 +488,30 @@ app.get("/api/generate-report", (req, res) => {
 
   let rowY = tableTop + 20;
 
-  // Sadece son 25 kaydı raporla (sayfa taşmaması için)
+  // Sadece son 25 kaydı raporla
+  doc.font(fontPath).fillColor("#334155").fontSize(7);
+
   sensorHistory.slice(-25).forEach((log, index) => {
     const bgColor = index % 2 === 0 ? "#ffffff" : "#f1f5f9";
     doc.rect(50, rowY, 495, 20).fill(bgColor);
 
+    const timeOnly =
+      (log.timestamp || "").toString().split(" ")[1] || "--:--:--";
+    const temp = log.temperature ?? "--";
+    const hum = log.humidity ?? "--";
+    const shock = log.shock ?? log.max_shock ?? log.shk ?? "--";
+    const sys = log.system_status || log.status || log.st || "NORMAL";
+    const f1 = log.f1 ?? "--";
+    const f2 = log.f2 ?? "--";
+
     doc
       .fillColor("#334155")
-      .fontSize(7)
-      .text(log.timestamp.split(" ")[1], 60, rowY + 7) // Sadece saat
-      .text(`${log.temperature}°C`, 180, rowY + 7)
-      .text(`%${log.humidity}`, 250, rowY + 7)
-      .text(`${log.shock}G`, 310, rowY + 7)
-      .text(log.system_status || "NORMAL", 370, rowY + 7)
-      .text(`F1:${log.f1} F2:${log.f2}`, 480, rowY + 7);
+      .text(timeOnly, 60, rowY + 7)
+      .text(`${temp}°C`, 180, rowY + 7)
+      .text(`%${hum}`, 250, rowY + 7)
+      .text(`${shock}G`, 310, rowY + 7)
+      .text(sys, 370, rowY + 7)
+      .text(`F1:${f1} F2:${f2}`, 480, rowY + 7);
 
     rowY += 20;
   });
@@ -485,7 +519,6 @@ app.get("/api/generate-report", (req, res) => {
   // --- FOOTER & DİJİTAL MÜHÜR ---
   const footerY = 680;
 
-  // Mühür Kutusu
   doc
     .roundedRect(50, footerY, 495, 80, 5)
     .lineWidth(2)
@@ -495,11 +528,13 @@ app.get("/api/generate-report", (req, res) => {
 
   doc
     .undash()
+    .font(fontBoldPath)
     .fillColor("#10ac84")
     .fontSize(14)
     .text("DİJİTAL KORUMA SERTİFİKASI", 70, footerY + 20);
 
   doc
+    .font(fontPath)
     .fillColor("#64748b")
     .fontSize(8)
     .text(
@@ -513,12 +548,12 @@ app.get("/api/generate-report", (req, res) => {
       footerY + 50,
     );
 
-  // QR Yerine Sembolik Kod
   doc
+    .font(fontPath)
     .fontSize(7)
     .fillColor("#cbd5e1")
     .text(
-      `AUTH_CODE: ${Buffer.from(latest.timestamp || "0")
+      `AUTH_CODE: ${Buffer.from(String(latest.timestamp || "0"))
         .toString("base64")
         .slice(0, 20)}`,
       70,
