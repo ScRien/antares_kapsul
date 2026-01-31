@@ -26,5 +26,5 @@ dist-ssr
 node_modules/
 .env
 dist/
-frontend/node_modules/
-backend/node_modules/
+antares-lab-ui/node_modules/
+server/node_modules/
