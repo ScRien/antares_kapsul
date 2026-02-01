@@ -345,13 +345,24 @@ app.get("/api/msg", (req, res) => {
   });
 });
 
-// ✅ /api/capture - Tarama komutu
+// ✅ /api/capture - Tarama komutu (QUEUE'YE EKLE)
 app.get("/api/capture", (req, res) => {
-  console.log("Tarama başlatıldı");
+  // Tarama komutu olarak sıraya ekle
+  commandQueue.push({
+    id: ++commandCounter,
+    type: "capture",
+    value: "START_360_SCAN",
+    status: "pending",
+    timestamp: Date.now(),
+  });
+
+  console.log(`✅ Tarama komutu (ID: ${commandCounter}) sıraya alındı`);
 
   res.json({
     success: true,
-    message: "Tarama komutu gönderildi",
+    message: "Tarama komutu sıraya alındı",
+    commandId: commandCounter,
+    queueLength: commandQueue.length,
   });
 });
 
