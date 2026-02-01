@@ -585,7 +585,9 @@ app.get("/api/generate-report", (req, res) => {
     .font(fontPath)
     .fontSize(10)
     .fillColor("#64748b")
-    .text("AKILLI KORUMA KAPSULU | DIJITAL IKIZ SISTEMI", 50, 72, { tracking: 1.2 });
+    .text("AKILLI KORUMA KAPSULU | DIJITAL IKIZ SISTEMI", 50, 72, {
+      tracking: 1.2,
+    });
 
   // Sağ üst köşe - Rapor Bilgileri
   doc
@@ -692,7 +694,10 @@ app.get("/api/generate-report", (req, res) => {
 
   // Son 10 kaydı göster
   const recentLogs = sensorHistory.slice(-10).reverse();
-  recentLogs.forEach((log, idx) => {
+  // Son 10 kaydı göster
+  const recentLogs = sensorHistory.slice(-10).reverse();
+  for (let idx = 0; idx < recentLogs.length; idx++) {
+    const log = recentLogs[idx];
     const f1Status = log.f1 === 1 ? "A" : "K";
     const f2Status = log.f2 === 1 ? "A" : "K";
     const logLine = `${idx + 1}. ${log.timestamp} | ${log.temperature || "--"}C | %${log.humidity || "--"} | ${f1Status}/${f2Status} | ${log.system_status || "OK"}`;
@@ -701,8 +706,7 @@ app.get("/api/generate-report", (req, res) => {
     yPos += 10;
 
     if (yPos > 700) break; // Sayfayı aşırsa durdur
-  });
-
+  }
   // --- WEB MESAJLARI ---
   if (webMessages.length > 0) {
     yPos += 10;
@@ -721,12 +725,9 @@ app.get("/api/generate-report", (req, res) => {
     doc.font(fontPath).fontSize(8).fillColor("#2d3436");
 
     webMessages.forEach((msg, idx) => {
-      doc.text(
-        `${idx + 1}. [${msg.timestamp}] ${msg.text}`,
-        60,
-        yPos,
-        { width: 480 },
-      );
+      doc.text(`${idx + 1}. [${msg.timestamp}] ${msg.text}`, 60, yPos, {
+        width: 480,
+      });
       yPos += 10;
     });
   }
