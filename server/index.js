@@ -456,9 +456,6 @@ app.get("/api/archive/thumbnail", async (req, res) => {
     }
 
     // Taramanın ilk dosyasını bul ve thumbnail olarak kullan
-    // Örn: scanId="2024-01-15_14-30" → ilk dosya bu taramadan
-    // Şu an sadece dosya adından başlayan taramaları filtrele
-
     const listUrl = `http://${process.env.ESP32_IP || "192.168.4.1"}/list`;
     const listResponse = await axios.get(listUrl, { timeout: 5000 });
 
@@ -572,10 +569,9 @@ app.get("/api/generate-report", (req, res) => {
 
   doc.pipe(res);
 
-  // ✅ Türkçe destekleyen fontlar
-  // Not: Sunucuda bu yolların doğru olduğundan emin ol
-  const fontPath = "./fonts/Roboto-Regular.ttf";
-  const fontBoldPath = "./fonts/Roboto-Bold.ttf";
+  // ✅ Türkçe destekleyen fontlar (Helvetica fallback)
+  const fontPath = "Helvetica";
+  const fontBoldPath = "Helvetica-Bold";
 
   // --- ARKA PLAN VE ÇERÇEVE ---
   doc.rect(20, 20, 555, 780).strokeColor("#e2e8f0").lineWidth(1).stroke();
@@ -584,66 +580,171 @@ app.get("/api/generate-report", (req, res) => {
   doc
     .font(fontBoldPath)
     .fillColor("#0f172a")
-    .fontSize(24)
-    .text("ANTARES", 50, 50, { lineGap: 5 })
+    .fontSize(28)
+    .text("ANTARES", 50, 40, { lineGap: 5 })
     .font(fontPath)
     .fontSize(10)
     .fillColor("#64748b")
-    .text("AKILLI KORUMA KAPSÜLÜ | DİJİTAL İKİZ SİSTEMİ", { tracking: 1.2 });
+    .text("AKILLI KORUMA KAPSULU | DIJITAL IKIZ SISTEMI", 50, 72, { tracking: 1.2 });
 
   // Sağ üst köşe - Rapor Bilgileri
   doc
     .font(fontPath)
     .fillColor("#0f172a")
     .fontSize(8)
-    .text(`RAPOR ID: #ANT-${now.toString().slice(-6)}`, 400, 50, {
+    .text(`RAPOR ID: #ANT-${now.toString().slice(-6)}`, 50, 100, {
       align: "right",
+      width: 500,
     })
-    .text(`TARİH: ${new Date().toLocaleString("tr-TR")}`, 400, 62, {
+    .text(`TARIH: ${new Date().toLocaleString("tr-TR")}`, 50, 112, {
       align: "right",
+      width: 500,
     });
 
   // --- DIVIDER ---
-  doc.moveTo(50, 90).lineTo(550, 90).stroke("#e2e8f0");
+  doc.moveTo(50, 130).lineTo(550, 130).stroke("#e2e8f0");
 
-  // --- CONTENT SECTION ---
-  doc.fontSize(11).fillColor("#0f172a");
+  // --- SYSTEM STATUS SECTION ---
+  doc
+    .font(fontBoldPath)
+    .fontSize(12)
+    .fillColor("#0f172a")
+    .text("SISTEM DURUMU", 50, 150);
 
-  doc.fontSize(12).font(fontBoldPath).text("SİSTEM ÖZET BİLGİSİ", 50, 110);
-  doc.fontSize(10).font(fontPath);
+  doc.font(fontPath).fontSize(9).fillColor("#2d3436");
 
-  const latest = sensorHistory[sensorHistory.length - 1] || {};
-  const content = `
-Güncel Sıcaklık: ${latest.temperature || "--"}°C
-Güncel Nem: %${latest.humidity || "--"}
-Toprak Bağlamı: ${latest.soil_context || "--"}
-Fan 1 Durumu: ${hardwareState.f1 === 1 ? "AÇIK" : "KAPALI"}
-Fan 2 Durumu: ${hardwareState.f2 === 1 ? "AÇIK" : "KAPALI"}
-Komut Kuyruğu: ${commandQueue.length} (${commandQueue.filter((c) => c.status === "pending").length} pending)
-Kayıtlı Tarihçe: ${sensorHistory.length} günlük
-  `.trim();
+  const latest = sensorHistory[sensorHistory.length - 1] || {
+    temperature: "--",
+    humidity: "--",
+    soil_context: "--",
+  };
 
-  doc.text(content, 50, 135, { lineGap: 8 });
+  const statusLines = [
+    `Guncel Sicaklik: ${latest.temperature || "--"}°C`,
+    `Guncel Nem Orani: %${latest.humidity || "--"}`,
+    `Toprak Baglami: ${latest.soil_context || "--"}`,
+    `Fan 1 (Salyangoz) Durumu: ${hardwareState.f1 === 1 ? "ACIK" : "KAPALI"}`,
+    `Fan 2 (Duz Fan) Durumu: ${hardwareState.f2 === 1 ? "ACIK" : "KAPALI"}`,
+    `Isitici Gucu: ${latest.heater_power || "--"}`,
+    `Sarsinti Sensoru: ${latest.shock || "--"}`,
+    `Sistem Durumu: ${latest.system_status || "OK"}`,
+  ];
 
-  // --- EN SON 10 KAYIT ---
-  doc.fontSize(12).font(fontBoldPath).text("SON 10 SENSÖR KAYDI", 50, 280);
-  doc.fontSize(8).font(fontPath);
-
-  const recentLogs = sensorHistory.slice(-10).reverse();
-  let yPos = 305;
-  recentLogs.forEach((log, idx) => {
-    const line = `${idx + 1}. ${log.timestamp} | T:${log.temperature}°C H:%${log.humidity} | F1:${log.f1 === 1 ? "✓" : "✗"} F2:${log.f2 === 1 ? "✓" : "✗"}`;
-    doc.text(line, 50, yPos);
-    yPos += 12;
+  let yPos = 170;
+  statusLines.forEach((line) => {
+    doc.text(line, 60, yPos);
+    yPos += 15;
   });
+
+  // --- COMMAND QUEUE STATUS ---
+  yPos += 10;
+  doc
+    .font(fontBoldPath)
+    .fontSize(12)
+    .fillColor("#0f172a")
+    .text("KOMUT KUYRUGU DURUMU", 50, yPos);
+
+  yPos += 20;
+  doc.font(fontPath).fontSize(9).fillColor("#2d3436");
+
+  const queueStats = {
+    toplamKomut: commandQueue.length,
+    beklemedeKomut: commandQueue.filter((c) => c.status === "pending").length,
+    gonderilenKomut: commandQueue.filter((c) => c.status === "sent").length,
+    onaylananKomut: commandQueue.filter((c) => c.status === "ack").length,
+  };
+
+  const queueLines = [
+    `Toplam Komut: ${queueStats.toplamKomut}`,
+    `Beklemede Komut: ${queueStats.beklemedeKomut}`,
+    `Gonderllen Komut: ${queueStats.gonderilenKomut}`,
+    `Onaylanan Komut: ${queueStats.onaylananKomut}`,
+    `Son Komut ID: ${commandCounter}`,
+  ];
+
+  queueLines.forEach((line) => {
+    doc.text(line, 60, yPos);
+    yPos += 15;
+  });
+
+  // --- SON 10 SENSÖR KAYDI ---
+  yPos += 10;
+  doc
+    .font(fontBoldPath)
+    .fontSize(11)
+    .fillColor("#0f172a")
+    .text("SON SENSOR KAYITLARI", 50, yPos);
+
+  yPos += 18;
+  doc.font(fontPath).fontSize(8).fillColor("#2d3436");
+
+  // Tablo basligi
+  doc.text("Sira", 50, yPos, { width: 30 });
+  doc.text("Tarih/Saat", 80, yPos, { width: 90 });
+  doc.text("Sicaklik", 170, yPos, { width: 50 });
+  doc.text("Nem", 220, yPos, { width: 40 });
+  doc.text("Fan1/F2", 260, yPos, { width: 50 });
+  doc.text("Durum", 310, yPos, { width: 50 });
+
+  yPos += 10;
+  doc.moveTo(50, yPos).lineTo(550, yPos).stroke("#d0d0d0");
+  yPos += 8;
+
+  // Son 10 kaydı göster
+  const recentLogs = sensorHistory.slice(-10).reverse();
+  recentLogs.forEach((log, idx) => {
+    const f1Status = log.f1 === 1 ? "A" : "K";
+    const f2Status = log.f2 === 1 ? "A" : "K";
+    const logLine = `${idx + 1}. ${log.timestamp} | ${log.temperature || "--"}C | %${log.humidity || "--"} | ${f1Status}/${f2Status} | ${log.system_status || "OK"}`;
+
+    doc.text(logLine, 50, yPos, { width: 500, fontSize: 7 });
+    yPos += 10;
+
+    if (yPos > 700) break; // Sayfayı aşırsa durdur
+  });
+
+  // --- WEB MESAJLARI ---
+  if (webMessages.length > 0) {
+    yPos += 10;
+    if (yPos > 680) {
+      doc.addPage();
+      yPos = 50;
+    }
+
+    doc
+      .font(fontBoldPath)
+      .fontSize(11)
+      .fillColor("#0f172a")
+      .text("SON WEB MESAJLARI", 50, yPos);
+
+    yPos += 18;
+    doc.font(fontPath).fontSize(8).fillColor("#2d3436");
+
+    webMessages.forEach((msg, idx) => {
+      doc.text(
+        `${idx + 1}. [${msg.timestamp}] ${msg.text}`,
+        60,
+        yPos,
+        { width: 480 },
+      );
+      yPos += 10;
+    });
+  }
 
   // --- FOOTER ---
   doc
-    .fontSize(8)
+    .font(fontPath)
+    .fontSize(7)
     .fillColor("#94a3b8")
-    .text("ANTARES v2.1 | Akıllı Koruma Kapsülü Sistem Raporu", 50, 750, {
+    .text("ANTARES v2.1 | Akilli Koruma Kapsulu Sistem Raporu", 50, 760, {
       align: "center",
-    });
+    })
+    .text(
+      `Rapor Olusturma Tarihi: ${new Date().toLocaleString("tr-TR")} | Kayit Sayisi: ${sensorHistory.length}`,
+      50,
+      770,
+      { align: "center" },
+    );
 
   doc.end();
 });
@@ -664,9 +765,11 @@ app.listen(PORT, () => {
     "✅ Bidirectional State Sync - Arduino ACK'tan gerçek durum güncelleniyor",
   );
   console.log("✅ 360° Archive Proxy - ESP32 dosya servisi ile entegre");
+  console.log("✅ PDF Report Generation - Sistem raporu oluştur");
   console.log("");
   console.log("📊 LATENCY BUDGET: ~2-3 saniye (toleranslı)");
   console.log("🔒 GÜVENILIRLIK: Komut kaybı riski %0");
   console.log("📸 360° ARŞIV: Dosya listesi ve görsel proxy aktif");
+  console.log("📄 RAPORLAR: PDF raporlar otomatik oluşturuluyor");
   console.log("");
 });
