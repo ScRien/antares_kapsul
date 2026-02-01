@@ -694,8 +694,6 @@ app.get("/api/generate-report", (req, res) => {
 
   // Son 10 kaydı göster
   const recentLogs = sensorHistory.slice(-10).reverse();
-  // Son 10 kaydı göster
-  const recentLogs = sensorHistory.slice(-10).reverse();
   for (let idx = 0; idx < recentLogs.length; idx++) {
     const log = recentLogs[idx];
     const f1Status = log.f1 === 1 ? "A" : "K";
@@ -707,6 +705,7 @@ app.get("/api/generate-report", (req, res) => {
 
     if (yPos > 700) break; // Sayfayı aşırsa durdur
   }
+
   // --- WEB MESAJLARI ---
   if (webMessages.length > 0) {
     yPos += 10;
