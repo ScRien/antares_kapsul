@@ -50,6 +50,9 @@ app.get("/", (req, res) => {
           .status-pulse { animation: pulse 2s infinite; }
           @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
           .accent-gradient { background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%); }
+          .btn-primary { background: linear-gradient(135deg, #00d2ff 0%, #10ac84 100%); transition: all 0.3s ease; }
+          .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0, 210, 255, 0.3); }
+          .btn-primary:active { transform: translateY(0px); }
       </style>
   </head>
   <body class="p-4 md:p-8">
@@ -86,7 +89,7 @@ app.get("/", (req, res) => {
               </div>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               <div class="lg:col-span-2 glass rounded-[2rem] p-8">
                   <h3 class="text-xl font-bold mb-6 flex items-center gap-3">
                       <i class="fa-solid fa-list-check text-sky-400"></i> Komut Havuzu (Queue)
@@ -164,6 +167,25 @@ app.get("/", (req, res) => {
                           </div>
                       </div>
                   </div>
+              </div>
+          </div>
+
+          <!-- ✅ YENİ: RAPOR BÖLÜMÜ -->
+          <div class="glass rounded-[2rem] p-8">
+              <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div>
+                      <h3 class="text-xl font-bold flex items-center gap-3 mb-2">
+                          <i class="fa-solid fa-file-pdf text-red-400"></i> Sistem Analiz Raporu
+                      </h3>
+                      <p class="text-slate-400 text-sm">
+                          ${sensorHistory.length} kayıtlı veri ile detaylı rapor oluştur
+                      </p>
+                  </div>
+                  <a href="/api/generate-report" 
+                     class="btn-primary text-white px-8 py-3 rounded-xl font-bold text-sm uppercase tracking-widest cursor-pointer hover:no-underline"
+                     download>
+                      <i class="fa-solid fa-download mr-2"></i> PDF İndir
+                  </a>
               </div>
           </div>
       </div>
