@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const PDFDocument = require("pdfkit");
+const axios = require("axios"); // ✅ YENİ: ESP32 proxy için
 
 const app = express();
 app.use(cors());
@@ -56,7 +57,7 @@ app.get("/", (req, res) => {
           <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
               <div>
                   <h1 class="text-4xl font-bold tracking-tighter text-transparent bg-clip-text accent-gradient">
-                      ANTARES <span class="text-white opacity-20 text-xl">v2.0</span>
+                      ANTARES <span class="text-white opacity-20 text-xl">v2.1</span>
                   </h1>
                   <p class="text-slate-400 text-sm uppercase tracking-widest mt-1">Akıllı Koruma Kapsülü Kontrol Merkezi</p>
               </div>
@@ -98,94 +99,107 @@ app.get("/", (req, res) => {
                               .slice()
                               .reverse()
                               .map(
-                                (cmd) => `
-                          <div class="flex justify-between items-center p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50">
-                              <div class="flex items-center gap-4">
-                                  <span class="text-xs font-mono text-slate-500">#${cmd.id}</span>
-                                  <span class="px-3 py-1 rounded-lg bg-sky-500/10 text-sky-400 text-xs font-bold uppercase">${cmd.type}</span>
-                                  <span class="font-medium">${cmd.value}</span>
-                              </div>
-                              <span class="text-[10px] px-2 py-1 rounded bg-slate-700 ${cmd.status === "ack" ? "text-emerald-400" : "text-amber-400"}">
-                                  ${cmd.status.toUpperCase()}
-                              </span>
+                                (cmd, i) => `
+                        <div class="bg-slate-800 p-3 rounded-lg text-xs border-l-2 ${
+                          cmd.status === "pending"
+                            ? "border-amber-500"
+                            : cmd.status === "sent"
+                              ? "border-sky-500"
+                              : "border-emerald-500"
+                        }">
+                          <div class="flex justify-between items-center">
+                            <span class="font-bold">#${cmd.id} | ${cmd.type}</span>
+                            <span class="text-[10px] ${
+                              cmd.status === "pending"
+                                ? "text-amber-400"
+                                : cmd.status === "sent"
+                                  ? "text-sky-400"
+                                  : "text-emerald-400"
+                            }">${cmd.status.toUpperCase()}</span>
                           </div>
+                          <div class="mt-1 text-slate-400">Değer: <span class="text-slate-200">${cmd.value}</span></div>
+                          <div class="text-[10px] text-slate-500 mt-1">${new Date(cmd.timestamp).toLocaleTimeString("tr-TR")}</div>
+                        </div>
                       `,
                               )
                               .join("")
                       }
                   </div>
               </div>
-
               <div class="glass rounded-[2rem] p-8">
-                  <h3 class="text-xl font-bold mb-6 flex items-center gap-3">
-                      <i class="fa-solid fa-microchip text-rose-400"></i> Donanım Durumu
+                  <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                      <i class="fa-solid fa-chart-line text-emerald-400"></i> Sistem Durumu
                   </h3>
-                  <div class="space-y-6">
-                      <div class="flex justify-between items-center">
-                          <span class="text-slate-400">Fan 1 (Salyangoz)</span>
-                          <span class="px-4 py-1 rounded-full font-bold ${hardwareState.f1 ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-700 text-slate-500"}">
-                              ${hardwareState.f1 ? "AÇIK" : "KAPALI"}
-                          </span>
+                  <div class="space-y-3 text-sm">
+                      <div>
+                          <p class="text-slate-400 text-xs uppercase mb-1">Fan 1 (Salyangoz)</p>
+                          <p class="text-2xl font-bold ${hardwareState.f1 === 1 ? "text-emerald-400" : "text-slate-500"}">
+                              ${hardwareState.f1 === 1 ? "✅ AÇIK" : "❌ KAPALI"}
+                          </p>
                       </div>
-                      <div class="flex justify-between items-center">
-                          <span class="text-slate-400">Fan 2 (Düz)</span>
-                          <span class="px-4 py-1 rounded-full font-bold ${hardwareState.f2 ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-700 text-slate-500"}">
-                              ${hardwareState.f2 ? "AÇIK" : "KAPALI"}
-                          </span>
+                      <div>
+                          <p class="text-slate-400 text-xs uppercase mb-1">Fan 2 (Düz Fan)</p>
+                          <p class="text-2xl font-bold ${hardwareState.f2 === 1 ? "text-emerald-400" : "text-slate-500"}">
+                              ${hardwareState.f2 === 1 ? "✅ AÇIK" : "❌ KAPALI"}
+                          </p>
                       </div>
-                      <div class="pt-6 border-t border-slate-700/50">
-                          <p class="text-xs text-slate-500 mb-2 italic">Son Veri Akışı:</p>
-                          <p class="text-sm font-mono text-slate-300">${latest.timestamp || "Veri bekleniyor..."}</p>
+                      <hr class="border-slate-700 my-4" />
+                      <div>
+                          <p class="text-slate-400 text-xs uppercase mb-2">Son 5 Mesaj</p>
+                          <div class="space-y-2">
+                              ${
+                                webMessages.length === 0
+                                  ? '<p class="text-slate-500 italic text-xs">Henüz mesaj yok</p>'
+                                  : webMessages
+                                      .map(
+                                        (msg) => `
+                              <div class="bg-slate-800 p-2 rounded text-[10px] border-l-2 border-cyan-500">
+                                <p class="text-slate-200">${msg.text}</p>
+                                <p class="text-slate-500 mt-1">${msg.timestamp}</p>
+                              </div>
+                            `,
+                                      )
+                                      .join("")
+                              }
+                          </div>
                       </div>
                   </div>
-                  
-                  <a href="/api/generate-report" class="mt-8 w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 transition-all p-4 rounded-2xl border border-white/10 text-sm font-bold">
-                      <i class="fa-solid fa-file-pdf text-rose-500"></i> SON RAPORU İNDİR
-                  </a>
               </div>
           </div>
-
-          <footer class="mt-12 text-center text-slate-600 text-xs">
-              Antares Cloud Systems © 2026 | Arkeolojik Koruma ve İzleme Teknolojileri
-          </footer>
       </div>
   </body>
   </html>
   `;
+
   res.send(html);
 });
 
-// ============= API ENDPOINTS =============
+// ============= API VERİ ENDPOINTS =============
 
-// ✅ v2: /api/data - Gerçek durum (Arduino ACK'tan)
-// ✅ v3: newMsg döndürme - ESP32 yeni mesaj alırsa Arduino'ya aktarır
 app.get("/api/data", (req, res) => {
-  const latest = sensorHistory[sensorHistory.length - 1] || {};
-
-  const responseData = {
-    t: latest.temperature ?? "--",
-    h: latest.humidity ?? "--",
-    s: latest.soil_context ?? "Ölçülüyor...",
-    f1: latest.f1 ?? hardwareState.f1, // Arduino ACK varsa onu kullan
-    f2: latest.f2 ?? hardwareState.f2,
+  const latest = sensorHistory[sensorHistory.length - 1] || {
+    temperature: "--",
+    humidity: "--",
+    soil_context: "Bağlantısız",
   };
 
-  // ✅ v3: Yeni mesaj varsa ekle
-  if (lastNewMessage) {
-    responseData.newMsg = lastNewMessage;
-    console.log(`📤 ESP32'ye mesaj gönderiliyor: "${lastNewMessage.text}" (${lastNewMessage.timestamp})`);
-    // Bir kere gönderildikten sonra temizle (böylece tekrar gönderilmez)
-    lastNewMessage = null;
-  }
-
-  res.json(responseData);
+  res.json({
+    ...latest,
+    t: latest.temperature || "--",
+    h: latest.humidity || "--",
+    s: latest.soil_context || "--",
+    f1: hardwareState.f1,
+    f2: hardwareState.f2,
+    messages: webMessages,
+    newMsg: lastNewMessage, // ✅ En son mesaj
+  });
 });
 
-// ✅ v2: /api/cmd - Komutu Queue'ye ekle
+// ============= KOMUT ENDPOINTS =============
+
 app.get("/api/cmd", (req, res) => {
   const { fan1, fan2, msg } = req.query;
 
-  // Her komut bir ID ile queue'ye eklenir
   if (fan1) {
     commandQueue.push({
       id: ++commandCounter,
@@ -212,7 +226,7 @@ app.get("/api/cmd", (req, res) => {
     // ✅ v3: Zaman damgası al
     const now = new Date();
     const timeStr = now.toLocaleTimeString("tr-TR").split(" ")[0]; // HH:MM:SS formatında
-    
+
     commandQueue.push({
       id: ++commandCounter,
       type: "msg",
@@ -220,7 +234,9 @@ app.get("/api/cmd", (req, res) => {
       status: "pending",
       timestamp: Date.now(),
     });
-    console.log(`✅ MSG="${msg}" (${timeStr}) (ID: ${commandCounter}) sıraya alındı`);
+    console.log(
+      `✅ MSG="${msg}" (${timeStr}) (ID: ${commandCounter}) sıraya alındı`,
+    );
 
     // ✅ v3: Mesaj havuzuna ekle (en yenisi başa)
     webMessages.unshift({
@@ -339,6 +355,144 @@ app.get("/api/capture", (req, res) => {
   });
 });
 
+// ============= YENİ: 360° GÖRSEL PROXY ENDPOINTS =============
+
+// ✅ /api/archive/list - ESP32'den dosya listesini al ve döndür
+app.get("/api/archive/list", async (req, res) => {
+  try {
+    // ESP32 yerel IP veya AP modundan bağlan (varsayılan: AP modu)
+    // Eğer ESP32 yerel ağda bir IP'si varsa onu kullan
+    const esp32Ip = process.env.ESP32_IP || "192.168.4.1"; // AP Modu varsayılı IP
+    const fileListUrl = `http://${esp32Ip}/list`;
+
+    console.log(`📡 ESP32 dosya listesi çekiliyor: ${fileListUrl}`);
+
+    const response = await axios.get(fileListUrl, { timeout: 5000 });
+
+    if (response.data && response.data.files) {
+      // Dosyaları en yeni tarihine göre sırala (ters sıra)
+      const sortedFiles = response.data.files.sort((a, b) => {
+        const timeA = new Date(a.timestamp || 0).getTime();
+        const timeB = new Date(b.timestamp || 0).getTime();
+        return timeB - timeA; // En yeni önce
+      });
+
+      console.log(`✅ ${sortedFiles.length} dosya bulundu`);
+
+      res.json({
+        success: true,
+        count: sortedFiles.length,
+        files: sortedFiles,
+      });
+    } else {
+      res.status(500).json({
+        error: "ESP32'den veri alınamadı",
+      });
+    }
+  } catch (error) {
+    console.error("❌ Dosya listesi hatası:", error.message);
+    res.status(500).json({
+      error: "ESP32 bağlantısı başarısız",
+      details: error.message,
+    });
+  }
+});
+
+// ✅ /api/archive/file - Belirli bir dosyayı ESP32'den al ve aktar
+app.get("/api/archive/file", async (req, res) => {
+  try {
+    const { name } = req.query;
+
+    if (!name) {
+      return res
+        .status(400)
+        .json({ error: "Dosya adı gerekli (query: ?name=...)" });
+    }
+
+    // Güvenlik kontrolü: sadece .jpg dosyalarına izin ver
+    if (!name.endsWith(".jpg") && !name.endsWith(".JPG")) {
+      return res
+        .status(400)
+        .json({ error: "Sadece .jpg dosyaları desteklenir" });
+    }
+
+    const esp32Ip = process.env.ESP32_IP || "192.168.4.1";
+    const fileUrl = `http://${esp32Ip}/file?name=${encodeURIComponent(name)}`;
+
+    console.log(`📸 Dosya aktar: ${name}`);
+
+    const response = await axios.get(fileUrl, {
+      responseType: "arraybuffer",
+      timeout: 10000,
+    });
+
+    // Dosya buffer olarak al
+    const fileBuffer = Buffer.from(response.data, "binary");
+
+    // Tarayıcıya JPEG olarak gönder
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "max-age=3600");
+    res.setHeader("Content-Disposition", `inline; filename="${name}"`);
+
+    res.send(fileBuffer);
+
+    console.log(`✅ Dosya gönderildi: ${name} (${fileBuffer.length} bytes)`);
+  } catch (error) {
+    console.error("❌ Dosya transfer hatası:", error.message);
+    res.status(500).json({
+      error: "Dosya alınamadı",
+      details: error.message,
+    });
+  }
+});
+
+// ✅ /api/archive/thumbnail - Taramanın ilk karesinin thumbnail'i
+app.get("/api/archive/thumbnail", async (req, res) => {
+  try {
+    const { scanId } = req.query;
+
+    if (!scanId) {
+      return res.status(400).json({ error: "Tarama ID'si gerekli" });
+    }
+
+    // Taramanın ilk dosyasını bul ve thumbnail olarak kullan
+    // Örn: scanId="2024-01-15_14-30" → ilk dosya bu taramadan
+    // Şu an sadece dosya adından başlayan taramaları filtrele
+
+    const listUrl = `http://${process.env.ESP32_IP || "192.168.4.1"}/list`;
+    const listResponse = await axios.get(listUrl, { timeout: 5000 });
+
+    const files = listResponse.data.files || [];
+    const scanFiles = files.filter((f) => f.name.startsWith(scanId));
+
+    if (scanFiles.length === 0) {
+      return res.status(404).json({ error: "Tarama bulunamadı" });
+    }
+
+    // İlk dosyayı thumbnail olarak kullan
+    const thumbnailFile = scanFiles[0];
+    const esp32Ip = process.env.ESP32_IP || "192.168.4.1";
+    const fileUrl = `http://${esp32Ip}/file?name=${encodeURIComponent(thumbnailFile.name)}`;
+
+    const response = await axios.get(fileUrl, {
+      responseType: "arraybuffer",
+      timeout: 10000,
+    });
+
+    const fileBuffer = Buffer.from(response.data, "binary");
+
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "max-age=3600");
+    res.send(fileBuffer);
+  } catch (error) {
+    console.error("❌ Thumbnail hatası:", error.message);
+    res.status(500).json({
+      error: "Thumbnail alınamadı",
+      details: error.message,
+    });
+  }
+});
+
 // Stream endpoint
 app.get("/api/stream", (req, res) => {
   res.redirect(
@@ -419,7 +573,7 @@ app.get("/api/generate-report", (req, res) => {
   doc.pipe(res);
 
   // ✅ Türkçe destekleyen fontlar
-  // Not: Sunucunda bu yolların doğru olduğundan emin ol
+  // Not: Sunucuda bu yolların doğru olduğundan emin ol
   const fontPath = "./fonts/Roboto-Regular.ttf";
   const fontBoldPath = "./fonts/Roboto-Bold.ttf";
 
@@ -449,155 +603,47 @@ app.get("/api/generate-report", (req, res) => {
       align: "right",
     });
 
-  doc.moveDown(2);
-  doc.path("M 50 100 L 545 95").lineWidth(2).strokeColor("#3a7bd5").stroke();
+  // --- DIVIDER ---
+  doc.moveTo(50, 90).lineTo(550, 90).stroke("#e2e8f0");
 
-  // --- ÖZET KARTLARI (Kutu İçinde Değerler) ---
+  // --- CONTENT SECTION ---
+  doc.fontSize(11).fillColor("#0f172a");
+
+  doc.fontSize(12).font(fontBoldPath).text("SİSTEM ÖZET BİLGİSİ", 50, 110);
+  doc.fontSize(10).font(fontPath);
+
   const latest = sensorHistory[sensorHistory.length - 1] || {};
+  const content = `
+Güncel Sıcaklık: ${latest.temperature || "--"}°C
+Güncel Nem: %${latest.humidity || "--"}
+Toprak Bağlamı: ${latest.soil_context || "--"}
+Fan 1 Durumu: ${hardwareState.f1 === 1 ? "AÇIK" : "KAPALI"}
+Fan 2 Durumu: ${hardwareState.f2 === 1 ? "AÇIK" : "KAPALI"}
+Komut Kuyruğu: ${commandQueue.length} (${commandQueue.filter((c) => c.status === "pending").length} pending)
+Kayıtlı Tarihçe: ${sensorHistory.length} günlük
+  `.trim();
 
-  doc
-    .roundedRect(50, 110, 150, 60, 10)
-    .fill("#f8fafc")
-    .strokeColor("#cbd5e1")
-    .stroke();
-  doc
-    .font(fontPath)
-    .fillColor("#64748b")
-    .fontSize(8)
-    .text("SON SICAKLIK", 65, 125);
-  doc
-    .fillColor("#0f172a")
-    .fontSize(18)
-    .text(`${latest.temperature ?? "--"}°C`, 65, 140);
+  doc.text(content, 50, 135, { lineGap: 8 });
 
-  doc
-    .roundedRect(220, 110, 150, 60, 10)
-    .fill("#f8fafc")
-    .strokeColor("#cbd5e1")
-    .stroke();
-  doc.fillColor("#64748b").fontSize(8).text("SON NEM", 235, 125);
-  doc
-    .fillColor("#0f172a")
-    .fontSize(18)
-    .text(`%${latest.humidity ?? "--"}`, 235, 140);
+  // --- EN SON 10 KAYIT ---
+  doc.fontSize(12).font(fontBoldPath).text("SON 10 SENSÖR KAYDI", 50, 280);
+  doc.fontSize(8).font(fontPath);
 
-  doc
-    .roundedRect(390, 110, 155, 60, 10)
-    .fill("#f8fafc")
-    .strokeColor("#cbd5e1")
-    .stroke();
-  doc.fillColor("#64748b").fontSize(8).text("MİNYATÜR DURUMU", 405, 125);
-
-  const statusText =
-    latest.system_status || latest.status || latest.st || "GÜVENLİ";
-  const statusColor =
-    statusText === "GÜVENLİ" || statusText === "OK" || statusText === "NORMAL"
-      ? "#10ac84"
-      : "#f59e0b";
-
-  doc
-    .fillColor(statusColor)
-    .font(fontBoldPath)
-    .fontSize(12)
-    .text(statusText, 405, 145);
-
-  doc.moveDown(6);
-
-  // --- BAŞLIK ---
-  doc
-    .font(fontBoldPath)
-    .fontSize(12)
-    .fillColor("#1e293b")
-    .text("TRANSFER SÜRECİ DETAYLI ANALİZ GÜNLÜĞÜ", 50, 200);
-
-  // --- VERİ TABLOSU ---
-  const tableTop = 230;
-  doc.rect(50, tableTop, 495, 20).fill("#1e293b");
-
-  doc
-    .font(fontBoldPath)
-    .fillColor("#ffffff")
-    .fontSize(8)
-    .text("ZAMAN", 60, tableTop + 7)
-    .text("SICAKLIK", 180, tableTop + 7)
-    .text("NEM", 250, tableTop + 7)
-    .text("ŞOK (G)", 310, tableTop + 7)
-    .text("DURUM", 370, tableTop + 7)
-    .text("FANLAR", 480, tableTop + 7);
-
-  let rowY = tableTop + 20;
-
-  // Sadece son 25 kaydı raporla
-  doc.font(fontPath).fillColor("#334155").fontSize(7);
-
-  sensorHistory.slice(-25).forEach((log, index) => {
-    const bgColor = index % 2 === 0 ? "#ffffff" : "#f1f5f9";
-    doc.rect(50, rowY, 495, 20).fill(bgColor);
-
-    const timeOnly =
-      (log.timestamp || "").toString().split(" ")[1] || "--:--:--";
-    const temp = log.temperature ?? "--";
-    const hum = log.humidity ?? "--";
-    const shock = log.shock ?? log.max_shock ?? log.shk ?? "--";
-    const sys = log.system_status || log.status || log.st || "NORMAL";
-    const f1 = log.f1 ?? "--";
-    const f2 = log.f2 ?? "--";
-
-    doc
-      .fillColor("#334155")
-      .text(timeOnly, 60, rowY + 7)
-      .text(`${temp}°C`, 180, rowY + 7)
-      .text(`%${hum}`, 250, rowY + 7)
-      .text(`${shock}G`, 310, rowY + 7)
-      .text(sys, 370, rowY + 7)
-      .text(`F1:${f1} F2:${f2}`, 480, rowY + 7);
-
-    rowY += 20;
+  const recentLogs = sensorHistory.slice(-10).reverse();
+  let yPos = 305;
+  recentLogs.forEach((log, idx) => {
+    const line = `${idx + 1}. ${log.timestamp} | T:${log.temperature}°C H:%${log.humidity} | F1:${log.f1 === 1 ? "✓" : "✗"} F2:${log.f2 === 1 ? "✓" : "✗"}`;
+    doc.text(line, 50, yPos);
+    yPos += 12;
   });
 
-  // --- FOOTER & DİJİTAL MÜHÜR ---
-  const footerY = 680;
-
+  // --- FOOTER ---
   doc
-    .roundedRect(50, footerY, 495, 80, 5)
-    .lineWidth(2)
-    .dash(5, { space: 2 })
-    .strokeColor("#10ac84")
-    .stroke();
-
-  doc
-    .undash()
-    .font(fontBoldPath)
-    .fillColor("#10ac84")
-    .fontSize(14)
-    .text("DİJİTAL KORUMA SERTİFİKASI", 70, footerY + 20);
-
-  doc
-    .font(fontPath)
-    .fillColor("#64748b")
     .fontSize(8)
-    .text(
-      "Bu belge, kapsül içerisindeki kriptolojik mühür ve sensör verilerinin",
-      70,
-      footerY + 40,
-    )
-    .text(
-      "anlık analizi ile üretilmiştir. Eser bütünlüğü Antares güvencesindedir.",
-      70,
-      footerY + 50,
-    );
-
-  doc
-    .font(fontPath)
-    .fontSize(7)
-    .fillColor("#cbd5e1")
-    .text(
-      `AUTH_CODE: ${Buffer.from(String(latest.timestamp || "0"))
-        .toString("base64")
-        .slice(0, 20)}`,
-      70,
-      footerY + 65,
-    );
+    .fillColor("#94a3b8")
+    .text("ANTARES v2.1 | Akıllı Koruma Kapsülü Sistem Raporu", 50, 750, {
+      align: "center",
+    });
 
   doc.end();
 });
@@ -606,7 +652,9 @@ app.get("/api/generate-report", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Antares Backend v2 (RELAY/POLLING) aktif port: ${PORT}`);
+  console.log(
+    `✅ Antares Backend v2.1 (360° ARCHIVE PROXY) aktif port: ${PORT}`,
+  );
   console.log("");
   console.log("🎯 ÖZELLİKLER:");
   console.log("✅ Command Queue (FIFO) - Her komut sırada tutuluyor");
@@ -616,8 +664,10 @@ app.listen(PORT, () => {
   console.log(
     "✅ Bidirectional State Sync - Arduino ACK'tan gerçek durum güncelleniyor",
   );
+  console.log("✅ 360° Archive Proxy - ESP32 dosya servisi ile entegre");
   console.log("");
   console.log("📊 LATENCY BUDGET: ~2-3 saniye (toleranslı)");
   console.log("🔒 GÜVENILIRLIK: Komut kaybı riski %0");
+  console.log("📸 360° ARŞIV: Dosya listesi ve görsel proxy aktif");
   console.log("");
 });

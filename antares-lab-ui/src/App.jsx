@@ -21,6 +21,14 @@ function App() {
   const [commandStatus, setCommandStatus] = useState("");
   const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
 
+  // ✅ YENİ: 360° Arşiv states
+  const [archiveFiles, setArchiveFiles] = useState([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [selectedScan, setSelectedScan] = useState(null);
+  const [viewerActive, setViewerActive] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [scanImages, setScanImages] = useState([]);
+
   useEffect(() => {
     const client = axios.create({
       baseURL: API_BASE,
@@ -46,6 +54,50 @@ function App() {
     const interval = setInterval(fetchData, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  // ✅ YENİ: Arşiv dosyalarını yükle
+  const loadArchiveFiles = async () => {
+    setArchiveLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE}/archive/list`);
+      if (res.data.files) {
+        setArchiveFiles(res.data.files);
+        console.log(`✅ ${res.data.count} dosya yüklendi`);
+      }
+    } catch (e) {
+      console.error("❌ Arşiv yükleme hatası:", e.message);
+      alert("Arşiv yüklenemedi!");
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
+  // ✅ YENİ: Taramayı 360 oynatıcıda aç
+  const openScan360 = async (fileName) => {
+    // Tarama ID'sini dosya adından çıkar (ilk 15 karakter)
+    const scanId = fileName.substring(0, 15);
+
+    // Bu taramaya ait tüm dosyaları bul
+    const scanFilesArray = archiveFiles.filter((f) =>
+      f.name.startsWith(scanId),
+    );
+
+    if (scanFilesArray.length === 0) {
+      alert("Bu taramaya ait görüntü bulunamadı!");
+      return;
+    }
+
+    setScanImages(scanFilesArray);
+    setSelectedScan({
+      id: scanId,
+      timestamp: scanFilesArray[0].timestamp,
+      count: scanFilesArray.length,
+    });
+    setCurrentImageIndex(0);
+    setViewerActive(true);
+
+    console.log(`🎬 360° Oynatıcı açıldı: ${scanFilesArray.length} görüntü`);
+  };
 
   const checkLogin = () => {
     if (passInput === "1234") setIsLoggedIn(true);
@@ -119,7 +171,11 @@ function App() {
 
     // ✅ v3: Karakter sınırı kontrolü (LCD 20 karakter)
     if (lcdMsg.length > 20) {
-      alert("❌ LCD maksimum 20 karaktere kadar destekler!\n(Şu an: " + lcdMsg.length + " karakter)");
+      alert(
+        "❌ LCD maksimum 20 karaktere kadar destekler!\n(Şu an: " +
+          lcdMsg.length +
+          " karakter)",
+      );
       return;
     }
 
@@ -167,6 +223,19 @@ function App() {
     return "bg-white border-gray-200";
   };
 
+  // ✅ YENİ: 360° Oynatıcı kontrolü
+  const handlePrevImage = () => {
+    setCurrentImageIndex((prev) =>
+      prev === 0 ? scanImages.length - 1 : prev - 1,
+    );
+  };
+
+  const handleNextImage = () => {
+    setCurrentImageIndex((prev) =>
+      prev === scanImages.length - 1 ? 0 : prev + 1,
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#f4f7f6] font-sans text-[#2d3436]">
       {/* Login Overlay */}
@@ -201,11 +270,96 @@ function App() {
         </div>
       </div>
 
+      {/* ✅ YENİ: 360° Viewer Modal */}
+      {viewerActive && selectedScan && (
+        <div className="fixed inset-0 bg-black/90 z-[10000] flex flex-col items-center justify-center p-4">
+          {/* Başlık */}
+          <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-6 text-white">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-2xl font-bold">
+                  360° Tarama Görüntüleyicisi
+                </h3>
+                <p className="text-sm text-gray-300 mt-1">
+                  Tarih: {selectedScan.timestamp} | Toplam: {selectedScan.count}{" "}
+                  görüntü
+                </p>
+              </div>
+              <button
+                onClick={() => setViewerActive(false)}
+                className="text-white text-3xl font-bold hover:text-gray-400"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          {/* Ana görüntü */}
+          <div className="relative w-full h-full flex items-center justify-center">
+            {scanImages.length > 0 && (
+              <img
+                key={scanImages[currentImageIndex].name}
+                src={`${API_BASE}/archive/file?name=${encodeURIComponent(
+                  scanImages[currentImageIndex].name,
+                )}`}
+                alt={`Görüntü ${currentImageIndex + 1}`}
+                className="max-w-[90%] max-h-[85%] object-contain"
+              />
+            )}
+          </div>
+
+          {/* Alt kontroller */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-6">
+            <div className="flex items-center justify-center gap-8 mb-4">
+              <button
+                onClick={handlePrevImage}
+                className="bg-[#10ac84] hover:bg-[#0e8b6b] text-white p-4 rounded-full transition-all active:scale-95"
+              >
+                ◀ Önceki
+              </button>
+
+              {/* Slider */}
+              <div className="flex-1 flex items-center gap-4">
+                <input
+                  type="range"
+                  min="0"
+                  max={scanImages.length - 1}
+                  value={currentImageIndex}
+                  onChange={(e) =>
+                    setCurrentImageIndex(parseInt(e.target.value))
+                  }
+                  className="w-full cursor-pointer"
+                />
+                <span className="text-white text-sm font-bold whitespace-nowrap">
+                  {currentImageIndex + 1}/{scanImages.length}
+                </span>
+              </div>
+
+              <button
+                onClick={handleNextImage}
+                className="bg-[#10ac84] hover:bg-[#0e8b6b] text-white p-4 rounded-full transition-all active:scale-95"
+              >
+                Sonraki ▶
+              </button>
+            </div>
+
+            {/* Bilgi */}
+            <div className="text-center text-gray-300 text-xs">
+              <p>Dosya: {scanImages[currentImageIndex]?.name}</p>
+              <p>
+                Boyut: {(scanImages[currentImageIndex]?.size / 1024).toFixed(1)}
+                KB
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white px-10 py-4 shadow-sm flex justify-between items-center">
         <h2 className="text-xl font-bold m-0">
           Antares{" "}
-          <span className="font-light text-slate-400">Lab Interface v2</span>
+          <span className="font-light text-slate-400">Lab Interface v2.1</span>
         </h2>
         <div className="flex items-center gap-4">
           <div className="text-[#10ac84] font-bold animate-pulse flex items-center gap-2 text-sm uppercase tracking-widest">
@@ -243,20 +397,49 @@ function App() {
             </div>
           </div>
 
+          {/* ✅ YENİ: 360° Tarama Arşivi */}
           <div className="bg-white p-5 rounded-[20px] shadow-sm">
-            <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-4 block">
-              360° Tarama Arşivi
-            </span>
-            <div className="flex gap-3 overflow-x-auto pb-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="w-[120px] h-[90px] bg-[#f9f9f9] border-2 border-dashed border-[#eee] rounded-xl flex-shrink-0 flex items-center justify-center text-[#ccc] text-[10px] hover:border-[#00d2ff] transition-all cursor-pointer"
-                >
-                  FOTO {i}
-                </div>
-              ))}
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 block">
+                360° Tarama Arşivi
+              </span>
+              <button
+                onClick={loadArchiveFiles}
+                disabled={archiveLoading}
+                className="text-[0.7rem] font-bold text-[#00d2ff] hover:text-[#0bb9d3] disabled:opacity-50"
+              >
+                {archiveLoading ? "⏳ Yükleniyor..." : "🔄 Yenile"}
+              </button>
             </div>
+
+            {archiveFiles.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <p>Henüz tarama arşivi yok</p>
+                <p className="text-xs mt-2">
+                  Tarama başlatıp arşivi yükledikten sonra görseller burada
+                  görünecek
+                </p>
+              </div>
+            ) : (
+              <div className="flex gap-3 overflow-x-auto pb-4">
+                {archiveFiles.map((file, i) => (
+                  <div
+                    key={file.name}
+                    onClick={() => openScan360(file.name)}
+                    className="w-[120px] h-[90px] bg-[#f9f9f9] border-2 border-dashed border-[#eee] rounded-xl flex-shrink-0 flex flex-col items-center justify-center text-[#ccc] text-[10px] hover:border-[#00d2ff] hover:bg-[#f0f8ff] transition-all cursor-pointer"
+                  >
+                    <span className="font-bold text-[#00d2ff]">📸</span>
+                    <span className="text-[8px] mt-1 text-center px-1">
+                      {file.name.substring(0, 12)}...
+                    </span>
+                    <span className="text-[7px] text-slate-400 mt-1">
+                      {(file.size / 1024).toFixed(1)}KB
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <button
               onClick={triggerScan}
               className="w-full mt-2 bg-[#10ac84] text-white p-4 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all uppercase text-sm tracking-widest"
@@ -306,7 +489,7 @@ function App() {
           {/* Donanım Kontrolü */}
           <div className="bg-white p-6 rounded-[20px] shadow-sm">
             <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 mb-6 block">
-              Donanım Kontrolü (v2: Real-time)
+              Donanım Kontrolü (v2.1: Real-time)
             </span>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-[#fcfcfc] p-4 rounded-2xl border border-[#f0f0f0] text-center">
