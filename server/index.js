@@ -14,6 +14,11 @@ let targetClimate = { t: 22.0, h: 60.0 };
 let commandQueue = [];
 let commandCounter = 0;
 
+// ✅ v3: Web Mesaj Havuzu (Son 5 mesaj tutulur)
+let webMessages = [];
+const MAX_MESSAGES = 5;
+let lastNewMessage = null; // ESP32'nin alması gereken yeni mesaj
+
 // Backend state (Arduino ACK'dan güncellenir)
 let hardwareState = {
   f1: 0,
@@ -153,16 +158,27 @@ app.get("/", (req, res) => {
 // ============= API ENDPOINTS =============
 
 // ✅ v2: /api/data - Gerçek durum (Arduino ACK'tan)
+// ✅ v3: newMsg döndürme - ESP32 yeni mesaj alırsa Arduino'ya aktarır
 app.get("/api/data", (req, res) => {
   const latest = sensorHistory[sensorHistory.length - 1] || {};
 
-  res.json({
+  const responseData = {
     t: latest.temperature ?? "--",
     h: latest.humidity ?? "--",
     s: latest.soil_context ?? "Ölçülüyor...",
     f1: latest.f1 ?? hardwareState.f1, // Arduino ACK varsa onu kullan
     f2: latest.f2 ?? hardwareState.f2,
-  });
+  };
+
+  // ✅ v3: Yeni mesaj varsa ekle
+  if (lastNewMessage) {
+    responseData.newMsg = lastNewMessage;
+    console.log(`📤 ESP32'ye mesaj gönderiliyor: "${lastNewMessage.text}" (${lastNewMessage.timestamp})`);
+    // Bir kere gönderildikten sonra temizle (böylece tekrar gönderilmez)
+    lastNewMessage = null;
+  }
+
+  res.json(responseData);
 });
 
 // ✅ v2: /api/cmd - Komutu Queue'ye ekle
@@ -193,6 +209,10 @@ app.get("/api/cmd", (req, res) => {
   }
 
   if (msg) {
+    // ✅ v3: Zaman damgası al
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString("tr-TR").split(" ")[0]; // HH:MM:SS formatında
+    
     commandQueue.push({
       id: ++commandCounter,
       type: "msg",
@@ -200,7 +220,26 @@ app.get("/api/cmd", (req, res) => {
       status: "pending",
       timestamp: Date.now(),
     });
-    console.log(`✅ MSG="${msg}" (ID: ${commandCounter}) sıraya alındı`);
+    console.log(`✅ MSG="${msg}" (${timeStr}) (ID: ${commandCounter}) sıraya alındı`);
+
+    // ✅ v3: Mesaj havuzuna ekle (en yenisi başa)
+    webMessages.unshift({
+      text: msg,
+      timestamp: timeStr,
+    });
+
+    // ✅ v3: Max 5 mesaj tut
+    if (webMessages.length > MAX_MESSAGES) {
+      webMessages.pop();
+    }
+
+    // ✅ v3: ESP32'nin alması gereken yeni mesaj
+    lastNewMessage = {
+      text: msg,
+      timestamp: timeStr,
+    };
+
+    console.log(`💾 Mesaj havuzu: ${webMessages.length}/${MAX_MESSAGES}`);
   }
 
   // Iyimser güncelleme (UI feedback için)

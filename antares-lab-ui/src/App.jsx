@@ -117,10 +117,17 @@ function App() {
       return;
     }
 
+    // ✅ v3: Karakter sınırı kontrolü (LCD 20 karakter)
+    if (lcdMsg.length > 20) {
+      alert("❌ LCD maksimum 20 karaktere kadar destekler!\n(Şu an: " + lcdMsg.length + " karakter)");
+      return;
+    }
+
     setCommandStatus("⏳ LCD mesajı gönderiliyor...");
 
+    // ✅ v3: Endpoint düzeltildi (/api/cmd?msg=... şeklinde)
     axios
-      .get(`${API_BASE}/msg`, { params: { text: lcdMsg } })
+      .get(`${API_BASE}/cmd`, { params: { msg: lcdMsg } })
       .then(() => {
         alert("✅ LCD'ye iletildi!");
         setLcdMsg("");
