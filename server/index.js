@@ -653,9 +653,8 @@ Kayıtlı Tarihçe: ${sensorHistory.length} günlük
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(
-    `✅ Antares Backend v2.1 (360° ARCHIVE PROXY) aktif port: ${PORT}`,
+    `✅ Antares Backend v2.1 (360° ARCHIVE PROXY) aktif port: ${PORT}\n`,
   );
-  console.log("");
   console.log("🎯 ÖZELLİKLER:");
   console.log("✅ Command Queue (FIFO) - Her komut sırada tutuluyor");
   console.log("✅ ACK Pattern - Komutlar güvenli bir şekilde takip ediliyor");
