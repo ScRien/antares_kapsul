@@ -196,7 +196,7 @@ export function useAuth() {
 async function mockAuthAPI(password) {
   return new Promise((resolve) => {
     setTimeout(() => {
-      if (password === "1234") {
+      if (password === "antares2026") {
         resolve({
           success: true,
           token: generateMockToken(),

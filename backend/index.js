@@ -15,6 +15,10 @@ let targetClimate = { t: 22.0, h: 60.0 };
 let commandQueue = [];
 let commandCounter = 0;
 
+// ============= v4: Canlı Görüntü =============
+let latestLiveFrame = null; // En son gelen JPEG buffer'ı
+let frameTimestamp = null; // Çekim zamanı
+
 // ✅ v3: Web Mesaj Havuzu (Son 5 mesaj tutulur)
 let webMessages = [];
 const MAX_MESSAGES = 5;
@@ -214,6 +218,9 @@ app.get("/api/data", (req, res) => {
     f2: hardwareState.f2,
     messages: webMessages,
     newMsg: lastNewMessage, // ✅ En son mesaj
+    // ✅ YENİ: Frame bilgisi
+    frameTimestamp: frameTimestamp,
+    frameSize: latestLiveFrame ? latestLiveFrame.length : 0,
   });
 });
 
@@ -388,6 +395,27 @@ app.get("/api/capture", (req, res) => {
   });
 });
 
+// ✅ YENİ: /api/capture-live - Butona basılınca HEMEN çek
+app.get("/api/capture-live", (req, res) => {
+  commandQueue.push({
+    id: ++commandCounter,
+    type: "capture_live",
+    value: "MANUAL_LIVE_FRAME", // ✅ Buton tarafından tetiklendi
+    status: "pending",
+    timestamp: Date.now(),
+  });
+
+  console.log(
+    `📸 [MANUEL BUTON] Canlı kare komutu (ID: ${commandCounter}) sıraya alındı`,
+  );
+
+  res.json({
+    success: true,
+    message: "Canlı kare komutu sıraya alındı - ESP32 çekiyor...",
+    commandId: commandCounter,
+  });
+});
+
 // ============= YENİ: 360° GÖRSEL PROXY ENDPOINTS =============
 
 // ✅ /api/archive/list - ESP32'den dosya listesini al ve döndür
@@ -523,12 +551,60 @@ app.get("/api/archive/thumbnail", async (req, res) => {
   }
 });
 
-// Stream endpoint
+// ✅ YENİ: /api/upload-frame - ESP32 çekip buraya gönderir
+app.post(
+  "/api/upload-frame",
+  express.raw({ type: "image/jpeg", limit: "2mb" }),
+  (req, res) => {
+    try {
+      latestLiveFrame = req.body;
+      frameTimestamp = new Date().toLocaleString("tr-TR");
+      console.log(
+        `✅ Frame backend'e alındı: ${latestLiveFrame.length} bytes @ ${frameTimestamp}`,
+      );
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("❌ Frame yükleme hatası:", error);
+      res.status(400).json({ error: "Frame yüklenemedi" });
+    }
+  },
+);
+
+// ✅ GÜNCELLENDİ: /api/stream - En son frame'i gönder
 app.get("/api/stream", (req, res) => {
-  res.redirect(
-    "https://placehold.co/1280x720/111/00d2ff?text=Antares+Canli+Yayin",
-  );
+  if (latestLiveFrame && latestLiveFrame.length > 0) {
+    res.set("Content-Type", "image/jpeg");
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.send(latestLiveFrame);
+    console.log(
+      `📤 Frame tarayıcıya gönderildi: ${latestLiveFrame.length} bytes`,
+    );
+  } else {
+    // Henüz çekilmemişse placeholder
+    res.redirect(
+      "https://placehold.co/1280x720/111/00d2ff?text=Yayin+Bekleniyor",
+    );
+  }
 });
+
+// ============= OTOMATIK 15 SANİYE ARALIGI =============
+
+const AUTO_CAPTURE_INTERVAL = 15000; // 15 saniye
+
+setInterval(() => {
+  commandQueue.push({
+    id: ++commandCounter,
+    type: "capture_live",
+    value: "AUTO_LIVE_FRAME", // ✅ Otomatik interval tetikledi
+    status: "pending",
+    timestamp: Date.now(),
+  });
+
+  console.log(
+    `⏰ [OTOMATİK 15SN] Canlı kare komutu (ID: ${commandCounter}) sıraya alındı`,
+  );
+}, AUTO_CAPTURE_INTERVAL);
 
 // ============= LOG & BULUT ENDPOINTS =============
 
