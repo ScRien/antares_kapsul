@@ -13,12 +13,12 @@ export default function Header({ lastDataUpdate, user, onLogout }) {
       <div className="flex items-center gap-8">
         {/* Sistem Durumu */}
         <div className="text-[#10ac84] font-bold animate-pulse flex items-center gap-2 text-sm uppercase tracking-widest">
-          <span className="text-lg">●</span> SİSTEM ÇEVRİMİÇİ
+          <span className="text-lg">●</span> SISTEM CEVRIMICI
         </div>
 
-        {/* Son Güncelleme */}
+        {/* Son Veri Guncellemesi */}
         <div className="text-[10px] text-slate-400">
-          Son güncelleme: {lastDataUpdate.toLocaleTimeString("tr-TR")}
+          Son telemetri: {lastDataUpdate.toLocaleTimeString("tr-TR")}
         </div>
 
         {/* Kullanıcı Bilgisi */}
@@ -35,7 +35,7 @@ export default function Header({ lastDataUpdate, user, onLogout }) {
               className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-lg transition-colors duration-200"
               title="Oturumu kapat"
             >
-              Çıkış
+              Cikis
             </button>
           </div>
         )}

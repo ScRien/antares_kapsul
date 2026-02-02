@@ -7,14 +7,14 @@ export function useSensorData(token, isLoggedIn) {
   const [data, setData] = useState({
     t: "--",
     h: "--",
-    s: "Ölçülüyor...",
+    s: "Olculuyor...",
     f1: 0,
     f2: 0,
   });
   const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
 
   useEffect(() => {
-    // Login olmadıysa veri çekme
+    // Login olmadiysa veri cekme
     if (!isLoggedIn || !token) {
       return;
     }
@@ -35,7 +35,7 @@ export function useSensorData(token, isLoggedIn) {
           setLastDataUpdate(new Date());
         }
       } catch (e) {
-        // Sessiz başarısız - Backend olmadığında hata gösterme
+        // Sessiz basarısız - Backend olmadığında hata gösterme
         if (e.response?.status === 401) {
           console.warn("Token expired or invalid");
         }
@@ -45,8 +45,8 @@ export function useSensorData(token, isLoggedIn) {
     // İlk çekme
     fetchData();
 
-    // 2 saniyede bir veri çek
-    const interval = setInterval(fetchData, 2000);
+    // 15 saniyede bir veri çek (sistem performansı için, eski: 2 saniye)
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [token, isLoggedIn]);
 

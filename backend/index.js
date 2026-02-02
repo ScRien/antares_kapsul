@@ -15,14 +15,14 @@ let targetClimate = { t: 22.0, h: 60.0 };
 let commandQueue = [];
 let commandCounter = 0;
 
-// ============= v4: Canlı Görüntü =============
-let latestLiveFrame = null; // En son gelen JPEG buffer'ı
-let frameTimestamp = null; // Çekim zamanı
+// ============= v4: Canli Goruntusu =============
+let latestLiveFrame = null; // En son gelen JPEG buffer'i
+let frameTimestamp = null; // Çekim zamani
 
 // ✅ v3: Web Mesaj Havuzu (Son 5 mesaj tutulur)
 let webMessages = [];
 const MAX_MESSAGES = 5;
-let lastNewMessage = null; // ESP32'nin alması gereken yeni mesaj
+let lastNewMessage = null; // ESP32'nin almasi gereken yeni mesaj
 
 // Backend state (Arduino ACK'dan güncellenir)
 let hardwareState = {
@@ -57,6 +57,9 @@ app.get("/", (req, res) => {
           .btn-primary { background: linear-gradient(135deg, #00d2ff 0%, #10ac84 100%); transition: all 0.3s ease; }
           .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0, 210, 255, 0.3); }
           .btn-primary:active { transform: translateY(0px); }
+          .btn-danger { background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%); transition: all 0.3s ease; }
+          .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3); }
+          .btn-danger:active { transform: translateY(0px); }
       </style>
   </head>
   <body class="p-4 md:p-8">
@@ -66,21 +69,21 @@ app.get("/", (req, res) => {
                   <h1 class="text-4xl font-bold tracking-tighter text-transparent bg-clip-text accent-gradient">
                       ANTARES <span class="text-white opacity-20 text-xl">v2.1</span>
                   </h1>
-                  <p class="text-slate-400 text-sm uppercase tracking-widest mt-1">Akıllı Koruma Kapsülü Kontrol Merkezi</p>
+                  <p class="text-slate-400 text-sm uppercase tracking-widest mt-1">Akilli Koruma Kapsulu Kontrol Merkezi</p>
               </div>
               <div class="flex items-center gap-3 px-4 py-2 rounded-full glass">
                   <div class="w-3 h-3 bg-emerald-500 rounded-full status-pulse"></div>
-                  <span class="text-sm font-medium">Sistem Çevrimiçi</span>
+                  <span class="text-sm font-medium">Sistem Cevrimici</span>
               </div>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               <div class="glass p-6 rounded-3xl">
-                  <p class="text-slate-400 text-xs uppercase mb-1">Sıcaklık</p>
+                  <p class="text-slate-400 text-xs uppercase mb-1">Sicaklik</p>
                   <h2 class="text-3xl font-bold">${latest.temperature || "--"}°C</h2>
               </div>
               <div class="glass p-6 rounded-3xl">
-                  <p class="text-slate-400 text-xs uppercase mb-1">Nem Oranı</p>
+                  <p class="text-slate-400 text-xs uppercase mb-1">Nem Orani</p>
                   <h2 class="text-3xl font-bold">%${latest.humidity || "--"}</h2>
               </div>
               <div class="glass p-6 rounded-3xl">
@@ -95,9 +98,14 @@ app.get("/", (req, res) => {
 
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               <div class="lg:col-span-2 glass rounded-[2rem] p-8">
-                  <h3 class="text-xl font-bold mb-6 flex items-center gap-3">
-                      <i class="fa-solid fa-list-check text-sky-400"></i> Komut Havuzu (Queue)
-                  </h3>
+                  <div class="flex justify-between items-center mb-6">
+                      <h3 class="text-xl font-bold flex items-center gap-3">
+                          <i class="fa-solid fa-list-check text-sky-400"></i> Komut Havuzu (Queue)
+                      </h3>
+                      <button onclick="clearAllCommands()" class="btn-danger text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest">
+                          <i class="fa-solid fa-trash mr-2"></i>Hepsini Sil
+                      </button>
+                  </div>
                   <div class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                       ${
                         commandQueue.length === 0
@@ -113,19 +121,24 @@ app.get("/", (req, res) => {
                             : cmd.status === "sent"
                               ? "border-sky-500"
                               : "border-emerald-500"
-                        }">
-                          <div class="flex justify-between items-center">
-                            <span class="font-bold">#${cmd.id} | ${cmd.type}</span>
-                            <span class="text-[10px] ${
-                              cmd.status === "pending"
-                                ? "text-amber-400"
-                                : cmd.status === "sent"
-                                  ? "text-sky-400"
-                                  : "text-emerald-400"
-                            }">${cmd.status.toUpperCase()}</span>
+                        } flex justify-between items-center">
+                          <div>
+                            <div class="flex justify-between items-center">
+                              <span class="font-bold">#${cmd.id} | ${cmd.type}</span>
+                              <span class="text-[10px] ${
+                                cmd.status === "pending"
+                                  ? "text-amber-400"
+                                  : cmd.status === "sent"
+                                    ? "text-sky-400"
+                                    : "text-emerald-400"
+                              } ml-2">${cmd.status.toUpperCase()}</span>
+                            </div>
+                            <div class="mt-1 text-slate-400">Deger: <span class="text-slate-200">${cmd.value}</span></div>
+                            <div class="text-[10px] text-slate-500 mt-1">${new Date(cmd.timestamp).toLocaleTimeString("tr-TR")}</div>
                           </div>
-                          <div class="mt-1 text-slate-400">Değer: <span class="text-slate-200">${cmd.value}</span></div>
-                          <div class="text-[10px] text-slate-500 mt-1">${new Date(cmd.timestamp).toLocaleTimeString("tr-TR")}</div>
+                          <button onclick="deleteCommand(${cmd.id})" class="btn-danger text-white px-2 py-1 rounded text-[10px] ml-2 hover:brightness-110 active:scale-95">
+                              <i class="fa-solid fa-trash"></i>
+                          </button>
                         </div>
                       `,
                               )
@@ -141,13 +154,13 @@ app.get("/", (req, res) => {
                       <div>
                           <p class="text-slate-400 text-xs uppercase mb-1">Fan 1 (Salyangoz)</p>
                           <p class="text-2xl font-bold ${hardwareState.f1 === 1 ? "text-emerald-400" : "text-slate-500"}">
-                              ${hardwareState.f1 === 1 ? "✅ AÇIK" : "❌ KAPALI"}
+                              ${hardwareState.f1 === 1 ? "✅ ACIK" : "❌ KAPALI"}
                           </p>
                       </div>
                       <div>
-                          <p class="text-slate-400 text-xs uppercase mb-1">Fan 2 (Düz Fan)</p>
+                          <p class="text-slate-400 text-xs uppercase mb-1">Fan 2 (Duz Fan)</p>
                           <p class="text-2xl font-bold ${hardwareState.f2 === 1 ? "text-emerald-400" : "text-slate-500"}">
-                              ${hardwareState.f2 === 1 ? "✅ AÇIK" : "❌ KAPALI"}
+                              ${hardwareState.f2 === 1 ? "✅ ACIK" : "❌ KAPALI"}
                           </p>
                       </div>
                       <hr class="border-slate-700 my-4" />
@@ -156,7 +169,7 @@ app.get("/", (req, res) => {
                           <div class="space-y-2">
                               ${
                                 webMessages.length === 0
-                                  ? '<p class="text-slate-500 italic text-xs">Henüz mesaj yok</p>'
+                                  ? '<p class="text-slate-500 italic text-xs">Henuz mesaj yok</p>'
                                   : webMessages
                                       .map(
                                         (msg) => `
@@ -169,12 +182,39 @@ app.get("/", (req, res) => {
                                       .join("")
                               }
                           </div>
+                          <button onclick="clearMessages()" class="btn-danger text-white px-3 py-1 rounded text-[10px] mt-3 w-full hover:brightness-110 active:scale-95">
+                              <i class="fa-solid fa-trash mr-1"></i>Mesajları Sil
+                          </button>
                       </div>
                   </div>
               </div>
           </div>
 
-          <!-- ✅ YENİ: RAPOR BÖLÜMÜ -->
+          <!-- TEMIZLEME KONTROLLLERI BOLUMU -->
+          <div class="glass rounded-[2rem] p-8 mb-8">
+              <h3 class="text-xl font-bold mb-6 flex items-center gap-3">
+                  <i class="fa-solid fa-broom text-amber-400"></i> Temizleme Kontrolleri
+              </h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button onclick="clearPendingCommands()" class="btn-danger text-white px-6 py-3 rounded-xl font-bold uppercase tracking-widest hover:brightness-110 active:scale-95 flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-hourglass-end"></i> Beklemede Olanları Sil
+                  </button>
+                  <button onclick="clearSentCommands()" class="btn-danger text-white px-6 py-3 rounded-xl font-bold uppercase tracking-widest hover:brightness-110 active:scale-95 flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-paper-plane"></i> Gönderilenları Sil
+                  </button>
+                  <button onclick="clearAckedCommands()" class="btn-danger text-white px-6 py-3 rounded-xl font-bold uppercase tracking-widest hover:brightness-110 active:scale-95 flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-check-double"></i> Onaylanmışları Sil
+                  </button>
+              </div>
+              <div class="mt-4 p-4 bg-amber-500/10 border-l-4 border-amber-500 rounded-lg">
+                  <p class="text-amber-200 text-sm">
+                      <i class="fa-solid fa-exclamation-triangle mr-2"></i>
+                      Uyarı: Temizleme işlemleri geri alınamaz. Sadece gerekli olduğunda kullanın.
+                  </p>
+              </div>
+          </div>
+
+          <!-- RAPOR BOLUMU -->
           <div class="glass rounded-[2rem] p-8">
               <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
@@ -182,17 +222,84 @@ app.get("/", (req, res) => {
                           <i class="fa-solid fa-file-pdf text-red-400"></i> Sistem Analiz Raporu
                       </h3>
                       <p class="text-slate-400 text-sm">
-                          ${sensorHistory.length} kayıtlı veri ile detaylı rapor oluştur
+                          ${sensorHistory.length} kayitli veri ile detayli rapor olustur
                       </p>
                   </div>
                   <a href="/api/generate-report" 
                      class="btn-primary text-white px-8 py-3 rounded-xl font-bold text-sm uppercase tracking-widest cursor-pointer hover:no-underline"
                      download>
-                      <i class="fa-solid fa-download mr-2"></i> PDF İndir
+                      <i class="fa-solid fa-download mr-2"></i> PDF Indir
                   </a>
               </div>
           </div>
       </div>
+
+      <script>
+          async function clearAllCommands() {
+              if (!confirm('TÜM komutları silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
+              const res = await fetch('/api/clear/all-commands', { method: 'POST' });
+              const data = await res.json();
+              alert(\`✅ \${data.deletedCount} komut silindi\`);
+              location.reload();
+          }
+
+          async function clearPendingCommands() {
+              if (!confirm('Tüm BEKLEMEDE komutları silmek istediğinize emin misiniz?')) return;
+              const res = await fetch('/api/clear/pending-commands', { method: 'POST' });
+              const data = await res.json();
+              alert(\`✅ \${data.deletedCount} komut silindi\`);
+              location.reload();
+          }
+
+          async function clearSentCommands() {
+              if (!confirm('Tüm GÖNDERILEN komutları silmek istediğinize emin misiniz?')) return;
+              const res = await fetch('/api/clear/sent-commands', { method: 'POST' });
+              const data = await res.json();
+              alert(\`✅ \${data.deletedCount} komut silindi\`);
+              location.reload();
+          }
+
+          async function clearAckedCommands() {
+              if (!confirm('Tüm ONAYLANAN komutları silmek istediğinize emin misiniz?')) return;
+              const res = await fetch('/api/clear/acked-commands', { method: 'POST' });
+              const data = await res.json();
+              alert(\`✅ \${data.deletedCount} komut silindi\`);
+              location.reload();
+          }
+
+          async function deleteCommand(id) {
+              if (!confirm(\`Komut #\${id}'yi silmek istediğinize emin misiniz?\`)) return;
+              const res = await fetch('/api/delete-command', { 
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ commandId: id })
+              });
+              const data = await res.json();
+              if (data.success) {
+                  alert('✅ Komut silindi');
+                  location.reload();
+              }
+          }
+
+          async function clearMessages() {
+              if (!confirm('Tüm mesajları silmek istediğinize emin misiniz?')) return;
+              const res = await fetch('/api/clear/messages', { method: 'POST' });
+              const data = await res.json();
+              alert(\`✅ \${data.deletedCount} mesaj silindi\`);
+              location.reload();
+          }
+
+          async function clearSensorHistory() {
+              if (!confirm('Tüm sensör geçmişini silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) return;
+              const res = await fetch('/api/clear/history', { method: 'POST' });
+              const data = await res.json();
+              alert(\`✅ \${data.deletedCount} kayıt silindi\`);
+              location.reload();
+          }
+
+          // Otomatik yenileme (30 saniye)
+          setTimeout(() => location.reload(), 30000);
+      </script>
   </body>
   </html>
   `;
@@ -200,13 +307,13 @@ app.get("/", (req, res) => {
   res.send(html);
 });
 
-// ============= API VERİ ENDPOINTS =============
+// ============= API VERI ENDPOINTS =============
 
 app.get("/api/data", (req, res) => {
   const latest = sensorHistory[sensorHistory.length - 1] || {
     temperature: "--",
     humidity: "--",
-    soil_context: "Bağlantısız",
+    soil_context: "Baglantisiz",
   };
 
   res.json({
@@ -217,8 +324,7 @@ app.get("/api/data", (req, res) => {
     f1: hardwareState.f1,
     f2: hardwareState.f2,
     messages: webMessages,
-    newMsg: lastNewMessage, // ✅ En son mesaj
-    // ✅ YENİ: Frame bilgisi
+    newMsg: lastNewMessage,
     frameTimestamp: frameTimestamp,
     frameSize: latestLiveFrame ? latestLiveFrame.length : 0,
   });
@@ -237,7 +343,7 @@ app.get("/api/cmd", (req, res) => {
       status: "pending",
       timestamp: Date.now(),
     });
-    console.log(`✅ Fan1=${fan1} (ID: ${commandCounter}) sıraya alındı`);
+    console.log(`✅ Fan1=${fan1} (ID: ${commandCounter}) siray alindi`);
   }
 
   if (fan2) {
@@ -248,13 +354,12 @@ app.get("/api/cmd", (req, res) => {
       status: "pending",
       timestamp: Date.now(),
     });
-    console.log(`✅ Fan2=${fan2} (ID: ${commandCounter}) sıraya alındı`);
+    console.log(`✅ Fan2=${fan2} (ID: ${commandCounter}) siray alindi`);
   }
 
   if (msg) {
-    // ✅ v3: Zaman damgası al
     const now = new Date();
-    const timeStr = now.toLocaleTimeString("tr-TR").split(" ")[0]; // HH:MM:SS formatında
+    const timeStr = now.toLocaleTimeString("tr-TR").split(" ")[0];
 
     commandQueue.push({
       id: ++commandCounter,
@@ -264,21 +369,18 @@ app.get("/api/cmd", (req, res) => {
       timestamp: Date.now(),
     });
     console.log(
-      `✅ MSG="${msg}" (${timeStr}) (ID: ${commandCounter}) sıraya alındı`,
+      `✅ MSG="${msg}" (${timeStr}) (ID: ${commandCounter}) siray alindi`,
     );
 
-    // ✅ v3: Mesaj havuzuna ekle (en yenisi başa)
     webMessages.unshift({
       text: msg,
       timestamp: timeStr,
     });
 
-    // ✅ v3: Max 5 mesaj tut
     if (webMessages.length > MAX_MESSAGES) {
       webMessages.pop();
     }
 
-    // ✅ v3: ESP32'nin alması gereken yeni mesaj
     lastNewMessage = {
       text: msg,
       timestamp: timeStr,
@@ -287,7 +389,6 @@ app.get("/api/cmd", (req, res) => {
     console.log(`💾 Mesaj havuzu: ${webMessages.length}/${MAX_MESSAGES}`);
   }
 
-  // Iyimser güncelleme (UI feedback için)
   if (fan1) hardwareState.f1 = fan1.toUpperCase() === "ON" ? 1 : 0;
   if (fan2) hardwareState.f2 = fan2.toUpperCase() === "ON" ? 1 : 0;
 
@@ -299,18 +400,14 @@ app.get("/api/cmd", (req, res) => {
   });
 });
 
-// ✅ v2: /api/pending-cmd - ESP32 kontrol eder
 app.get("/api/pending-cmd", (req, res) => {
-  // SADECE pending komutları gönder
   const pending = commandQueue.filter((cmd) => cmd.status === "pending");
 
-  // Komutları "sent" olarak işaretle (ama silme!)
   pending.forEach((cmd) => (cmd.status = "sent"));
 
-  // ESP32 en fazla 5 komutu bir seferde alsın
   const toSend = pending.slice(0, 5);
 
-  console.log(`📤 ${toSend.length} komut ESP32'ye gönderiliyor`);
+  console.log(`📤 ${toSend.length} komut ESP32'ye gonderiliiyor`);
 
   res.json({
     commands: toSend,
@@ -318,9 +415,8 @@ app.get("/api/pending-cmd", (req, res) => {
   });
 });
 
-// ✅ v2: /api/cmd-ack - ESP32 komutları başarıyla aldığını bildir
 app.post("/api/cmd-ack", (req, res) => {
-  const { commandIds } = req.body; // [1, 2, 3]
+  const { commandIds } = req.body;
 
   if (!Array.isArray(commandIds) || commandIds.length === 0) {
     return res.status(400).json({ error: "commandIds array gerekli" });
@@ -337,21 +433,20 @@ app.post("/api/cmd-ack", (req, res) => {
     }
   });
 
-  // ✅ Eski komutları temizle (5 dakika + ack'd)
   const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
   const initialLength = commandQueue.length;
 
   commandQueue = commandQueue.filter((cmd) => {
     if (cmd.status === "ack" && cmd.ackedAt && cmd.ackedAt < fiveMinutesAgo) {
-      return false; // Sil
+      return false;
     }
-    return true; // Koru
+    return true;
   });
 
   const cleaned = initialLength - commandQueue.length;
 
   console.log(
-    `✅ ${ackedCount} komut onaylandı, ${cleaned} eski komut silindi`,
+    `✅ ${ackedCount} komut onaylandi, ${cleaned} eski komut silindi`,
   );
 
   res.json({
@@ -362,21 +457,18 @@ app.post("/api/cmd-ack", (req, res) => {
   });
 });
 
-// ✅ /api/msg - LCD mesaj
 app.get("/api/msg", (req, res) => {
   const { text } = req.query;
-  console.log("LCD Mesajı:", text);
+  console.log("LCD Mesaji:", text);
 
   res.json({
     success: true,
-    message: "LCD mesajı alındı",
+    message: "LCD mesaji alindi",
     text: text,
   });
 });
 
-// ✅ /api/capture - Tarama komutu (QUEUE'YE EKLE)
 app.get("/api/capture", (req, res) => {
-  // Tarama komutu olarak sıraya ekle
   commandQueue.push({
     id: ++commandCounter,
     type: "capture",
@@ -385,57 +477,118 @@ app.get("/api/capture", (req, res) => {
     timestamp: Date.now(),
   });
 
-  console.log(`✅ Tarama komutu (ID: ${commandCounter}) sıraya alındı`);
+  console.log(`✅ Tarama komutu (ID: ${commandCounter}) siray alindi`);
 
   res.json({
     success: true,
-    message: "Tarama komutu sıraya alındı",
+    message: "Tarama komutu siray alindi",
     commandId: commandCounter,
     queueLength: commandQueue.length,
   });
 });
 
-// ✅ YENİ: /api/capture-live - Butona basılınca HEMEN çek
 app.get("/api/capture-live", (req, res) => {
   commandQueue.push({
     id: ++commandCounter,
     type: "capture_live",
-    value: "MANUAL_LIVE_FRAME", // ✅ Buton tarafından tetiklendi
+    value: "MANUAL_LIVE_FRAME",
     status: "pending",
     timestamp: Date.now(),
   });
 
   console.log(
-    `📸 [MANUEL BUTON] Canlı kare komutu (ID: ${commandCounter}) sıraya alındı`,
+    `📸 [MANUEL BUTON] Canli kare komutu (ID: ${commandCounter}) siray alindi`,
   );
 
   res.json({
     success: true,
-    message: "Canlı kare komutu sıraya alındı - ESP32 çekiyor...",
+    message: "Canli kare komutu siray alindi - ESP32 cekiyor...",
     commandId: commandCounter,
   });
 });
 
-// ============= YENİ: 360° GÖRSEL PROXY ENDPOINTS =============
+// ============= TEMIZLEME ENDPOINTS =============
 
-// ✅ /api/archive/list - ESP32'den dosya listesini al ve döndür
+// Tüm komutları sil
+app.post("/api/clear/all-commands", (req, res) => {
+  const deletedCount = commandQueue.length;
+  commandQueue = [];
+  console.log(`🗑️ TÜM ${deletedCount} komut silindi`);
+  res.json({ success: true, deletedCount });
+});
+
+// Sadece PENDING komutları sil
+app.post("/api/clear/pending-commands", (req, res) => {
+  const initialLength = commandQueue.length;
+  commandQueue = commandQueue.filter((cmd) => cmd.status !== "pending");
+  const deletedCount = initialLength - commandQueue.length;
+  console.log(`🗑️ ${deletedCount} PENDING komut silindi`);
+  res.json({ success: true, deletedCount });
+});
+
+// Sadece SENT komutları sil
+app.post("/api/clear/sent-commands", (req, res) => {
+  const initialLength = commandQueue.length;
+  commandQueue = commandQueue.filter((cmd) => cmd.status !== "sent");
+  const deletedCount = initialLength - commandQueue.length;
+  console.log(`🗑️ ${deletedCount} SENT komut silindi`);
+  res.json({ success: true, deletedCount });
+});
+
+// Sadece ACK'd komutları sil
+app.post("/api/clear/acked-commands", (req, res) => {
+  const initialLength = commandQueue.length;
+  commandQueue = commandQueue.filter((cmd) => cmd.status !== "ack");
+  const deletedCount = initialLength - commandQueue.length;
+  console.log(`🗑️ ${deletedCount} ACK komut silindi`);
+  res.json({ success: true, deletedCount });
+});
+
+// Belirli bir komutu sil
+app.post("/api/delete-command", (req, res) => {
+  const { commandId } = req.body;
+  const initialLength = commandQueue.length;
+  commandQueue = commandQueue.filter((cmd) => cmd.id !== commandId);
+  const success = initialLength > commandQueue.length;
+  if (success) {
+    console.log(`🗑️ Komut #${commandId} silindi`);
+  }
+  res.json({ success, deletedCount: success ? 1 : 0 });
+});
+
+// Mesajları sil
+app.post("/api/clear/messages", (req, res) => {
+  const deletedCount = webMessages.length;
+  webMessages = [];
+  lastNewMessage = null;
+  console.log(`🗑️ ${deletedCount} mesaj silindi`);
+  res.json({ success: true, deletedCount });
+});
+
+// Sensör geçmişini sil
+app.post("/api/clear/history", (req, res) => {
+  const deletedCount = sensorHistory.length;
+  sensorHistory = [];
+  console.log(`🗑️ ${deletedCount} sensör kaydı silindi`);
+  res.json({ success: true, deletedCount });
+});
+
+// ============= 360° GORSEL PROXY ENDPOINTS =============
+
 app.get("/api/archive/list", async (req, res) => {
   try {
-    // ESP32 yerel IP veya AP modundan bağlan (varsayılan: AP modu)
-    // Eğer ESP32 yerel ağda bir IP'si varsa onu kullan
-    const esp32Ip = process.env.ESP32_IP || "192.168.4.1"; // AP Modu varsayılı IP
+    const esp32Ip = process.env.ESP32_IP || "192.168.4.1";
     const fileListUrl = `http://${esp32Ip}/list`;
 
-    console.log(`📡 ESP32 dosya listesi çekiliyor: ${fileListUrl}`);
+    console.log(`📡 ESP32 dosya listesi cekiliyor: ${fileListUrl}`);
 
     const response = await axios.get(fileListUrl, { timeout: 5000 });
 
     if (response.data && response.data.files) {
-      // Dosyaları en yeni tarihine göre sırala (ters sıra)
       const sortedFiles = response.data.files.sort((a, b) => {
         const timeA = new Date(a.timestamp || 0).getTime();
         const timeB = new Date(b.timestamp || 0).getTime();
-        return timeB - timeA; // En yeni önce
+        return timeB - timeA;
       });
 
       console.log(`✅ ${sortedFiles.length} dosya bulundu`);
@@ -447,19 +600,18 @@ app.get("/api/archive/list", async (req, res) => {
       });
     } else {
       res.status(500).json({
-        error: "ESP32'den veri alınamadı",
+        error: "ESP32'den veri alinamadi",
       });
     }
   } catch (error) {
-    console.error("❌ Dosya listesi hatası:", error.message);
+    console.error("❌ Dosya listesi hatasi:", error.message);
     res.status(500).json({
-      error: "ESP32 bağlantısı başarısız",
+      error: "ESP32 baglantisi basarısız",
       details: error.message,
     });
   }
 });
 
-// ✅ /api/archive/file - Belirli bir dosyayı ESP32'den al ve aktar
 app.get("/api/archive/file", async (req, res) => {
   try {
     const { name } = req.query;
@@ -467,14 +619,13 @@ app.get("/api/archive/file", async (req, res) => {
     if (!name) {
       return res
         .status(400)
-        .json({ error: "Dosya adı gerekli (query: ?name=...)" });
+        .json({ error: "Dosya adi gerekli (query: ?name=...)" });
     }
 
-    // Güvenlik kontrolü: sadece .jpg dosyalarına izin ver
     if (!name.endsWith(".jpg") && !name.endsWith(".JPG")) {
       return res
         .status(400)
-        .json({ error: "Sadece .jpg dosyaları desteklenir" });
+        .json({ error: "Sadece .jpg dosyalari desteklenir" });
     }
 
     const esp32Ip = process.env.ESP32_IP || "192.168.4.1";
@@ -487,27 +638,24 @@ app.get("/api/archive/file", async (req, res) => {
       timeout: 10000,
     });
 
-    // Dosya buffer olarak al
     const fileBuffer = Buffer.from(response.data, "binary");
 
-    // Tarayıcıya JPEG olarak gönder
     res.setHeader("Content-Type", "image/jpeg");
     res.setHeader("Cache-Control", "max-age=3600");
     res.setHeader("Content-Disposition", `inline; filename="${name}"`);
 
     res.send(fileBuffer);
 
-    console.log(`✅ Dosya gönderildi: ${name} (${fileBuffer.length} bytes)`);
+    console.log(`✅ Dosya gonderildi: ${name} (${fileBuffer.length} bytes)`);
   } catch (error) {
-    console.error("❌ Dosya transfer hatası:", error.message);
+    console.error("❌ Dosya transfer hatasi:", error.message);
     res.status(500).json({
-      error: "Dosya alınamadı",
+      error: "Dosya alinamadi",
       details: error.message,
     });
   }
 });
 
-// ✅ /api/archive/thumbnail - Taramanın ilk karesinin thumbnail'i
 app.get("/api/archive/thumbnail", async (req, res) => {
   try {
     const { scanId } = req.query;
@@ -516,7 +664,6 @@ app.get("/api/archive/thumbnail", async (req, res) => {
       return res.status(400).json({ error: "Tarama ID'si gerekli" });
     }
 
-    // Taramanın ilk dosyasını bul ve thumbnail olarak kullan
     const listUrl = `http://${process.env.ESP32_IP || "192.168.4.1"}/list`;
     const listResponse = await axios.get(listUrl, { timeout: 5000 });
 
@@ -524,10 +671,9 @@ app.get("/api/archive/thumbnail", async (req, res) => {
     const scanFiles = files.filter((f) => f.name.startsWith(scanId));
 
     if (scanFiles.length === 0) {
-      return res.status(404).json({ error: "Tarama bulunamadı" });
+      return res.status(404).json({ error: "Tarama bulunamadi" });
     }
 
-    // İlk dosyayı thumbnail olarak kullan
     const thumbnailFile = scanFiles[0];
     const esp32Ip = process.env.ESP32_IP || "192.168.4.1";
     const fileUrl = `http://${esp32Ip}/file?name=${encodeURIComponent(thumbnailFile.name)}`;
@@ -543,15 +689,14 @@ app.get("/api/archive/thumbnail", async (req, res) => {
     res.setHeader("Cache-Control", "max-age=3600");
     res.send(fileBuffer);
   } catch (error) {
-    console.error("❌ Thumbnail hatası:", error.message);
+    console.error("❌ Thumbnail hatasi:", error.message);
     res.status(500).json({
-      error: "Thumbnail alınamadı",
+      error: "Thumbnail alinamadi",
       details: error.message,
     });
   }
 });
 
-// ✅ YENİ: /api/upload-frame - ESP32 çekip buraya gönderir
 app.post(
   "/api/upload-frame",
   express.raw({ type: "image/jpeg", limit: "2mb" }),
@@ -560,17 +705,16 @@ app.post(
       latestLiveFrame = req.body;
       frameTimestamp = new Date().toLocaleString("tr-TR");
       console.log(
-        `✅ Frame backend'e alındı: ${latestLiveFrame.length} bytes @ ${frameTimestamp}`,
+        `✅ Frame backend'e alindi: ${latestLiveFrame.length} bytes @ ${frameTimestamp}`,
       );
       res.sendStatus(200);
     } catch (error) {
-      console.error("❌ Frame yükleme hatası:", error);
-      res.status(400).json({ error: "Frame yüklenemedi" });
+      console.error("❌ Frame yukleme hatasi:", error);
+      res.status(400).json({ error: "Frame yuklenemedi" });
     }
   },
 );
 
-// ✅ GÜNCELLENDİ: /api/stream - En son frame'i gönder
 app.get("/api/stream", (req, res) => {
   if (latestLiveFrame && latestLiveFrame.length > 0) {
     res.set("Content-Type", "image/jpeg");
@@ -578,10 +722,9 @@ app.get("/api/stream", (req, res) => {
     res.set("Pragma", "no-cache");
     res.send(latestLiveFrame);
     console.log(
-      `📤 Frame tarayıcıya gönderildi: ${latestLiveFrame.length} bytes`,
+      `📤 Frame tarayiciya gonderildi: ${latestLiveFrame.length} bytes`,
     );
   } else {
-    // Henüz çekilmemişse placeholder
     res.redirect(
       "https://placehold.co/1280x720/111/00d2ff?text=Yayin+Bekleniyor",
     );
@@ -590,29 +733,27 @@ app.get("/api/stream", (req, res) => {
 
 // ============= OTOMATIK 15 SANİYE ARALIGI =============
 
-const AUTO_CAPTURE_INTERVAL = 15000; // 15 saniye
+const AUTO_CAPTURE_INTERVAL = 15000;
 
 setInterval(() => {
   commandQueue.push({
     id: ++commandCounter,
     type: "capture_live",
-    value: "AUTO_LIVE_FRAME", // ✅ Otomatik interval tetikledi
+    value: "AUTO_LIVE_FRAME",
     status: "pending",
     timestamp: Date.now(),
   });
 
   console.log(
-    `⏰ [OTOMATİK 15SN] Canlı kare komutu (ID: ${commandCounter}) sıraya alındı`,
+    `⏰ [OTOMATİK 15SN] Canli kare komutu (ID: ${commandCounter}) siray alindi`,
   );
 }, AUTO_CAPTURE_INTERVAL);
 
 // ============= LOG & BULUT ENDPOINTS =============
 
-// ✅ v2: /api/log-summary - Arduino'dan sensör + ACK durumu alıyor
 app.post("/api/log-summary", (req, res) => {
   const { t, h, s, ht, f1, f2, shk, st } = req.body;
 
-  // ✅ Arduino'nun gerçek durumunu kullan
   if (f1 !== undefined) hardwareState.f1 = f1;
   if (f2 !== undefined) hardwareState.f2 = f2;
 
@@ -622,8 +763,8 @@ app.post("/api/log-summary", (req, res) => {
     humidity: h,
     soil_context: s,
     heater_power: ht,
-    f1: f1, // ✅ Arduino'nun gerçek durumu
-    f2: f2, // ✅ Arduino'nun gerçek durumu
+    f1: f1,
+    f2: f2,
     shock: shk,
     system_status: st,
     queueStatus: {
@@ -635,7 +776,6 @@ app.post("/api/log-summary", (req, res) => {
 
   sensorHistory.push(logEntry);
 
-  // Bellek yönetimi: Son 1000 kaydı tut
   if (sensorHistory.length > 1000) sensorHistory.shift();
 
   console.log("✅ Kara Kutu Güncellendi:", {
@@ -647,7 +787,7 @@ app.post("/api/log-summary", (req, res) => {
   });
 
   res.status(200).json({
-    message: "Veri buluta işlendi",
+    message: "Veri buluta islendi",
     recorded: logEntry,
     hardwareStateSync: { f1: hardwareState.f1, f2: hardwareState.f2 },
   });
@@ -655,7 +795,6 @@ app.post("/api/log-summary", (req, res) => {
 
 // ============= DEBUG ENDPOINTS =============
 
-// Queue durumunu göster
 app.get("/api/queue-status", (req, res) => {
   res.json({
     total: commandQueue.length,
@@ -666,7 +805,7 @@ app.get("/api/queue-status", (req, res) => {
   });
 });
 
-// Yeni, tek ve geliştirilmiş /api/generate-report handler
+// PDF RAPOR
 app.get("/api/generate-report", (req, res) => {
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   const now = Date.now();
@@ -675,15 +814,12 @@ app.get("/api/generate-report", (req, res) => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
-  // Pipe PDF output to response
   doc.pipe(res);
 
-  // Local helpers & resources
   const fs = require("fs");
   const pageW = doc.page.width;
   const pageH = doc.page.height;
 
-  // Try to register a Turkish-capable font if available
   const fontDir = "./assets/fonts";
   const preferredFonts = [
     "Inter-Regular.ttf",
@@ -700,7 +836,6 @@ app.get("/api/generate-report", (req, res) => {
       try {
         doc.registerFont("BaseFont", p);
         baseFont = "BaseFont";
-        // attempt to find bold sibling
         const boldCandidate = p.replace(/\.(ttf|otf)$/i, "-Bold.ttf");
         if (fs.existsSync(boldCandidate)) {
           doc.registerFont("BaseBold", boldCandidate);
@@ -709,7 +844,7 @@ app.get("/api/generate-report", (req, res) => {
           boldFont = baseFont;
         }
       } catch (e) {
-        // ignore and fallback
+        //ignore
       }
       break;
     }
@@ -717,7 +852,6 @@ app.get("/api/generate-report", (req, res) => {
 
   const fonts = { base: baseFont, bold: boldFont };
 
-  // Colors / theme
   const colors = {
     primary: "#00d2ff",
     secondary: "#10ac84",
@@ -729,14 +863,12 @@ app.get("/api/generate-report", (req, res) => {
     accent: "#ff9f43",
   };
 
-  // Small utility: draw section header
   function drawSectionHeader(title, y) {
     doc
       .font(fonts.bold)
       .fontSize(14)
       .fillColor(colors.primary)
       .text(title, 48, y);
-    // underline
     doc
       .moveTo(48, y + 18)
       .lineTo(pageW - 48, y + 18)
@@ -746,13 +878,11 @@ app.get("/api/generate-report", (req, res) => {
     return y + 30;
   }
 
-  // Footer will be drawn after buffering pages
   function addFooter() {
-    const range = doc.bufferedPageRange(); // { start: 0, count: n }
+    const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
       const bottom = pageH - 40;
-      // background bar
       doc
         .rect(0, bottom - 8, pageW, 48)
         .fillColor("#FFFFFF")
@@ -762,7 +892,7 @@ app.get("/api/generate-report", (req, res) => {
         .font(fonts.base)
         .fontSize(8)
         .fillColor(colors.lightText)
-        .text(`ANTARES v2.1 • Akıllı Koruma Kapsülü Sistemi`, 48, bottom - 2);
+        .text(`ANTARES v2.1 • Akilli Koruma Kapsulu Sistemi`, 48, bottom - 2);
 
       const rightText = `${new Date().toLocaleString("tr-TR")} • Sayfa ${i + 1}/${
         range.count
@@ -771,7 +901,6 @@ app.get("/api/generate-report", (req, res) => {
         align: "right",
         width: pageW - 96,
       });
-      // subtle divider
       doc
         .moveTo(48, bottom - 10)
         .lineTo(pageW - 48, bottom - 10)
@@ -781,12 +910,9 @@ app.get("/api/generate-report", (req, res) => {
     }
   }
 
-  // ----- COVER PAGE -----
   doc.rect(0, 0, pageW, pageH).fill(colors.surface);
-  // vertical accent stripe
   doc.rect(40, 60, 8, 120).fill(colors.primary);
 
-  // Title
   doc
     .font(fonts.bold)
     .fontSize(36)
@@ -797,9 +923,8 @@ app.get("/api/generate-report", (req, res) => {
     .font(fonts.base)
     .fontSize(14)
     .fillColor(colors.lightText)
-    .text("Akıllı Koruma Kapsülü | Dijital İkiz & Analiz Raporu", 64, 126);
+    .text("Akilli Koruma Kapsulu | Dijital Ikiz & Analiz Raporu", 64, 126);
 
-  // metadata box
   const metaY = 200;
   doc
     .rect(64, metaY, pageW - 128, 120)
@@ -817,19 +942,18 @@ app.get("/api/generate-report", (req, res) => {
     .fontSize(10)
     .fillColor(colors.text)
     .text(`Rapor ID: #ANT-${now.toString().slice(-8)}`, 76, metaY + 34)
-    .text(`Oluşturulma: ${new Date().toLocaleString("tr-TR")}`, 76, metaY + 50)
-    .text(`Kayıt Sayısı: ${sensorHistory.length}`, 76, metaY + 66)
-    .text(`Sistem Sürümü: v2.1`, 76, metaY + 82);
+    .text(`Olusturulma: ${new Date().toLocaleString("tr-TR")}`, 76, metaY + 50)
+    .text(`Kayit Sayisi: ${sensorHistory.length}`, 76, metaY + 66)
+    .text(`Sistem Surum: v2.1`, 76, metaY + 82);
 
   doc.addPage();
 
-  // ----- SUMMARY / STATUS PAGE -----
   let y = 48;
   doc
     .font(fonts.bold)
     .fontSize(18)
     .fillColor(colors.dark)
-    .text("Sistem Özeti", 48, y);
+    .text("Sistem Ozeti", 48, y);
   y += 28;
 
   const latest = sensorHistory[sensorHistory.length - 1] || {
@@ -841,12 +965,11 @@ app.get("/api/generate-report", (req, res) => {
     system_status: "OK",
   };
 
-  // Cards - two per row
   const cardW = (pageW - 48 * 2 - 16) / 2;
   const cardH = 70;
   const cards = [
     {
-      title: "Sıcaklık",
+      title: "Sicaklik",
       value: `${latest.temperature || "--"}°C`,
       color: colors.accent,
     },
@@ -856,7 +979,7 @@ app.get("/api/generate-report", (req, res) => {
       color: colors.primary,
     },
     {
-      title: "Toprak Bağlamı",
+      title: "Toprak Baglami",
       value: `${latest.soil_context || "--"}`,
       color: colors.secondary,
     },
@@ -893,7 +1016,6 @@ app.get("/api/generate-report", (req, res) => {
 
   y += cardH + 8;
 
-  // Komut Kuyruğu Bölümü
   y = drawSectionHeader("Komut Kuyruğu Durumu", y);
 
   const queueStats = {
@@ -906,7 +1028,7 @@ app.get("/api/generate-report", (req, res) => {
   const statLabels = [
     ["Toplam", queueStats.toplam],
     ["Beklemede", queueStats.beklemede],
-    ["Gönderilen", queueStats.gonderilen],
+    ["Gonderilen", queueStats.gonderilen],
     ["Onaylanan", queueStats.onaylanan],
   ];
 
@@ -929,7 +1051,6 @@ app.get("/api/generate-report", (req, res) => {
 
   y += 64;
 
-  // Son Komut ID
   doc
     .font(fonts.base)
     .fontSize(9)
@@ -941,17 +1062,15 @@ app.get("/api/generate-report", (req, res) => {
     .fillColor(colors.primary)
     .text(`#${commandCounter}`, 140, y);
 
-  // ----- SENSOR LOG TABLE -----
   y += 34;
-  y = drawSectionHeader("Son Sensör Kayıtları", y);
+  y = drawSectionHeader("Son Sensor Kayitlari", y);
 
   const tableX = 48;
   const tableW = pageW - tableX * 2;
   const rowHeight = 14;
-  const headers = ["#", "Tarih/Saat", "Sıcaklık", "Nem", "Fan", "Durum"];
+  const headers = ["#", "Tarih/Saat", "Sicaklik", "Nem", "Fan", "Durum"];
   const colWidths = [24, 130, 70, 50, 50, tableW - (24 + 130 + 70 + 50 + 50)];
 
-  // header row
   let cx = tableX;
   doc.font(fonts.bold).fontSize(9).fillColor(colors.dark);
   for (let i = 0; i < headers.length; i++) {
@@ -960,7 +1079,6 @@ app.get("/api/generate-report", (req, res) => {
   }
   y += 18;
 
-  // rows: last 20 logs
   const recentLogs = sensorHistory.slice(-20).reverse();
   doc.font(fonts.base).fontSize(8).fillColor(colors.text);
   for (let i = 0; i < recentLogs.length; i++) {
@@ -989,10 +1107,9 @@ app.get("/api/generate-report", (req, res) => {
     y += rowHeight;
   }
 
-  // ----- WEB MESAJLARI -----
   y += 16;
   if (webMessages && webMessages.length > 0) {
-    y = drawSectionHeader("Son Web Mesajları", y);
+    y = drawSectionHeader("Son Web Mesajlari", y);
     doc.font(fonts.base).fontSize(9).fillColor(colors.text);
     for (let i = 0; i < webMessages.length; i++) {
       const msg = webMessages[i];
@@ -1014,10 +1131,8 @@ app.get("/api/generate-report", (req, res) => {
     }
   }
 
-  // Add footer to all pages
   addFooter();
 
-  // Finalize PDF
   doc.end();
 });
 
@@ -1028,20 +1143,22 @@ app.listen(PORT, () => {
   console.log(
     `✅ Antares Backend v2.1 (360° ARCHIVE PROXY) aktif port: ${PORT}\n`,
   );
-  console.log("🎯 ÖZELLİKLER:");
-  console.log("✅ Command Queue (FIFO) - Her komut sırada tutuluyor");
-  console.log("✅ ACK Pattern - Komutlar güvenli bir şekilde takip ediliyor");
-  console.log("✅ Non-blocking Serial - ESP32 seri port kontrolü stabil");
+  console.log("🎯 OZELLIKLER:");
+  console.log("✅ Command Queue (FIFO) - Her komut sirada tutuluyor");
+  console.log("✅ ACK Pattern - Komutlar guvenli bir sekilde takip ediliyor");
+  console.log("✅ Non-blocking Serial - ESP32 seri port kontrolu stabil");
   console.log("✅ Keep-Alive Connection - TLS handshake minimized");
   console.log(
-    "✅ Bidirectional State Sync - Arduino ACK'tan gerçek durum güncelleniyor",
+    "✅ Bidirectional State Sync - Arduino ACK'tan gercek durum guncelleniyor",
   );
   console.log("✅ 360° Archive Proxy - ESP32 dosya servisi ile entegre");
-  console.log("✅ PDF Report Generation - Sistem raporu oluştur");
+  console.log("✅ PDF Report Generation - Sistem raporu olustur");
+  console.log("✅ CLEANUP TOOLS - Komut, mesaj ve gecmis temizleme araclari");
   console.log("");
   console.log("📊 LATENCY BUDGET: ~2-3 saniye (toleranslı)");
   console.log("🔒 GÜVENILIRLIK: Komut kaybı riski %0");
   console.log("📸 360° ARŞIV: Dosya listesi ve görsel proxy aktif");
   console.log("📄 RAPORLAR: PDF raporlar otomatik oluşturuluyor");
+  console.log("🧹 TEMIZLEME: Komut, mesaj ve sensör geçmişi temizleme aktif");
   console.log("");
 });
