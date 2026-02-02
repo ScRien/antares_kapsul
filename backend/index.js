@@ -590,130 +590,171 @@ app.get("/api/queue-status", (req, res) => {
   });
 });
 
-// ============= RAPOR ENDPOINTS =============
-
+// Yeni, tek ve geliştirilmiş /api/generate-report handler
 app.get("/api/generate-report", (req, res) => {
-  const doc = new PDFDocument({ margin: 0, bufferPages: true });
+  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   const now = Date.now();
   const fileName = `Antares_Analiz_Raporu_${new Date().toISOString().split("T")[0]}.pdf`;
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
+  // Pipe PDF output to response
   doc.pipe(res);
 
-  const pageWidth = 595;
-  const pageHeight = 842;
-  const fontPath = "Helvetica";
-  const fontBoldPath = "Helvetica-Bold";
+  // Local helpers & resources
+  const fs = require("fs");
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
 
-  // ============= TASARIM RENKLERİ =============
+  // Try to register a Turkish-capable font if available
+  const fontDir = "./assets/fonts";
+  const preferredFonts = [
+    "Inter-Regular.ttf",
+    "Roboto-Regular.ttf",
+    "DejaVuSans.ttf",
+    "NotoSans-Regular.ttf",
+  ];
+  let baseFont = "Helvetica";
+  let boldFont = "Helvetica-Bold";
+
+  for (const f of preferredFonts) {
+    const p = `${fontDir}/${f}`;
+    if (fs.existsSync(p)) {
+      try {
+        doc.registerFont("BaseFont", p);
+        baseFont = "BaseFont";
+        // attempt to find bold sibling
+        const boldCandidate = p.replace(/\.(ttf|otf)$/i, "-Bold.ttf");
+        if (fs.existsSync(boldCandidate)) {
+          doc.registerFont("BaseBold", boldCandidate);
+          boldFont = "BaseBold";
+        } else {
+          boldFont = baseFont;
+        }
+      } catch (e) {
+        // ignore and fallback
+      }
+      break;
+    }
+  }
+
+  const fonts = { base: baseFont, bold: boldFont };
+
+  // Colors / theme
   const colors = {
     primary: "#00d2ff",
     secondary: "#10ac84",
     dark: "#0f172a",
     text: "#2d3436",
     lightText: "#64748b",
-    border: "#e2e8f0",
-    background: "#f8fafc",
+    border: "#e6eef6",
+    surface: "#fbfdff",
     accent: "#ff9f43",
   };
 
-  function addPageHeader() {
-    doc.rect(0, 0, pageWidth, 40).fill(colors.dark);
+  // Small utility: draw section header
+  function drawSectionHeader(title, y) {
     doc
-      .fontSize(10)
-      .fillColor(colors.primary)
-      .font(fontBoldPath)
-      .text("ANTARES", 40, 12)
-      .fontSize(7)
-      .fillColor(colors.lightText)
-      .font(fontPath)
-      .text("Akıllı Koruma Kapsülü | v2.1", 40, 22);
-    doc
-      .fontSize(8)
-      .fillColor(colors.lightText)
-      .text(`Sayfa ${doc.page.number}`, pageWidth - 80, 16);
-    doc
-      .strokeColor(colors.primary)
-      .lineWidth(2)
-      .moveTo(0, 40)
-      .lineTo(pageWidth, 40)
-      .stroke();
-  }
-
-  function addSection(title, yPos = null) {
-    if (yPos === null) yPos = doc.y + 20;
-    doc.rect(0, yPos - 5, pageWidth, 30).fill("#f0f7ff");
-    doc
+      .font(fonts.bold)
       .fontSize(14)
-      .font(fontBoldPath)
       .fillColor(colors.primary)
-      .text(title, 40, yPos + 7);
+      .text(title, 48, y);
+    // underline
     doc
-      .strokeColor(colors.secondary)
-      .lineWidth(1.5)
-      .moveTo(40, yPos + 25)
-      .lineTo(300, yPos + 25)
+      .moveTo(48, y + 18)
+      .lineTo(pageW - 48, y + 18)
+      .lineWidth(0.6)
+      .strokeColor(colors.border)
       .stroke();
-    return yPos + 35;
+    return y + 30;
   }
 
-  // KAPAK SAYFASI
-  doc.rect(0, 0, pageWidth, 300).fill("#ffffff");
-  doc.rect(0, 0, 5, pageHeight).fill(colors.primary);
+  // Footer will be drawn after buffering pages
+  function addFooter() {
+    const range = doc.bufferedPageRange(); // { start: 0, count: n }
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      const bottom = pageH - 40;
+      // background bar
+      doc
+        .rect(0, bottom - 8, pageW, 48)
+        .fillColor("#FFFFFF")
+        .fill();
+
+      doc
+        .font(fonts.base)
+        .fontSize(8)
+        .fillColor(colors.lightText)
+        .text(`ANTARES v2.1 • Akıllı Koruma Kapsülü Sistemi`, 48, bottom - 2);
+
+      const rightText = `${new Date().toLocaleString("tr-TR")} • Sayfa ${i + 1}/${
+        range.count
+      }`;
+      doc.text(rightText, 48, bottom - 2, {
+        align: "right",
+        width: pageW - 96,
+      });
+      // subtle divider
+      doc
+        .moveTo(48, bottom - 10)
+        .lineTo(pageW - 48, bottom - 10)
+        .lineWidth(0.4)
+        .strokeColor(colors.border)
+        .stroke();
+    }
+  }
+
+  // ----- COVER PAGE -----
+  doc.rect(0, 0, pageW, pageH).fill(colors.surface);
+  // vertical accent stripe
+  doc.rect(40, 60, 8, 120).fill(colors.primary);
+
+  // Title
   doc
-    .fontSize(48)
-    .font(fontBoldPath)
+    .font(fonts.bold)
+    .fontSize(36)
     .fillColor(colors.dark)
-    .text("ANTARES", 60, 100, { width: 400 });
-  doc
-    .fontSize(18)
-    .font(fontPath)
-    .fillColor(colors.secondary)
-    .text("Sistem Analiz Raporu", 60, 160, { width: 400 });
-  doc
-    .strokeColor(colors.primary)
-    .lineWidth(2)
-    .moveTo(60, 195)
-    .lineTo(400, 195)
-    .stroke();
-  doc
-    .strokeColor(colors.secondary)
-    .lineWidth(1)
-    .moveTo(60, 205)
-    .lineTo(350, 205)
-    .stroke();
-
-  const boxY = 250;
-  doc.rect(60, boxY, 400, 120).fillAndStroke(colors.background, colors.border);
-  doc
-    .fontSize(11)
-    .font(fontBoldPath)
-    .fillColor(colors.dark)
-    .text("RAPOR BİLGİLERİ", 80, boxY + 15);
-  doc.fontSize(10).font(fontPath).fillColor(colors.text);
-
-  const reportDate = new Date().toLocaleString("tr-TR");
-  const reportLines = [
-    `Rapor ID: #ANT-${now.toString().slice(-8)}`,
-    `Tarih: ${reportDate}`,
-    `Kayıt Sayısı: ${sensorHistory.length}`,
-    `Sistem Sürümü: v2.1`,
-  ];
-
-  let boxTextY = boxY + 35;
-  reportLines.forEach((line) => {
-    doc.text(line, 80, boxTextY);
-    boxTextY += 18;
-  });
+    .text("ANTARES", 64, 80);
 
   doc
-    .fontSize(9)
+    .font(fonts.base)
+    .fontSize(14)
     .fillColor(colors.lightText)
-    .text("Sayfa 1", pageWidth - 100, pageHeight - 50);
+    .text("Akıllı Koruma Kapsülü | Dijital İkiz & Analiz Raporu", 64, 126);
+
+  // metadata box
+  const metaY = 200;
+  doc
+    .rect(64, metaY, pageW - 128, 120)
+    .fillAndStroke("#ffffff", colors.border)
+    .fillOpacity(1);
+
+  doc
+    .font(fonts.bold)
+    .fontSize(11)
+    .fillColor(colors.dark)
+    .text("RAPOR BİLGİLERİ", 76, metaY + 12);
+
+  doc
+    .font(fonts.base)
+    .fontSize(10)
+    .fillColor(colors.text)
+    .text(`Rapor ID: #ANT-${now.toString().slice(-8)}`, 76, metaY + 34)
+    .text(`Oluşturulma: ${new Date().toLocaleString("tr-TR")}`, 76, metaY + 50)
+    .text(`Kayıt Sayısı: ${sensorHistory.length}`, 76, metaY + 66)
+    .text(`Sistem Sürümü: v2.1`, 76, metaY + 82);
+
   doc.addPage();
-  addPageHeader();
+
+  // ----- SUMMARY / STATUS PAGE -----
+  let y = 48;
+  doc
+    .font(fonts.bold)
+    .fontSize(18)
+    .fillColor(colors.dark)
+    .text("Sistem Özeti", 48, y);
+  y += 28;
 
   const latest = sensorHistory[sensorHistory.length - 1] || {
     temperature: "--",
@@ -724,144 +765,60 @@ app.get("/api/generate-report", (req, res) => {
     system_status: "OK",
   };
 
-  // SİSTEM DURUMU
-  let currentY = addSection("GÜNCEL SİSTEM DURUMU", 60);
-
-  const cardWidth = (pageWidth - 80) / 2;
-  const cardHeight = 90;
+  // Cards - two per row
+  const cardW = (pageW - 48 * 2 - 16) / 2;
+  const cardH = 70;
   const cards = [
     {
-      title: "SICAKLIK",
+      title: "Sıcaklık",
       value: `${latest.temperature || "--"}°C`,
-      unit: "Derece Celsius",
       color: colors.accent,
     },
     {
-      title: "NEM ORANI",
+      title: "Nem",
       value: `${latest.humidity || "--"}%`,
-      unit: "Yüzde",
       color: colors.primary,
     },
     {
-      title: "FAN 1 (Salyangoz)",
-      value: hardwareState.f1 === 1 ? "AÇIK" : "KAPALI",
-      unit: "Durum",
-      color: hardwareState.f1 === 1 ? colors.secondary : colors.accent,
+      title: "Toprak Bağlamı",
+      value: `${latest.soil_context || "--"}`,
+      color: colors.secondary,
     },
     {
-      title: "FAN 2 (Düz Fan)",
-      value: hardwareState.f2 === 1 ? "AÇIK" : "KAPALI",
-      unit: "Durum",
-      color: hardwareState.f2 === 1 ? colors.secondary : colors.accent,
+      title: "Sistem Durumu",
+      value: `${latest.system_status || "OK"}`,
+      color: colors.dark,
     },
   ];
 
-  let cardX = 40;
-  let cardY = currentY;
-  let cardCount = 0;
-
-  cards.forEach((card) => {
-    if (cardCount === 2) {
-      cardX = 40;
-      cardY += cardHeight + 20;
-      cardCount = 0;
+  let x = 48;
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i];
+    doc
+      .rect(x, y, cardW, cardH)
+      .fillAndStroke("#ffffff", colors.border)
+      .fillOpacity(1);
+    doc
+      .font(fonts.bold)
+      .fontSize(10)
+      .fillColor(c.color)
+      .text(c.title, x + 10, y + 10);
+    doc
+      .font(fonts.base)
+      .fontSize(20)
+      .fillColor(colors.text)
+      .text(c.value, x + 10, y + 28);
+    x += cardW + 16;
+    if ((i + 1) % 2 === 0) {
+      x = 48;
+      y += cardH + 12;
     }
-
-    doc
-      .rect(cardX, cardY, cardWidth - 10, cardHeight)
-      .fillAndStroke(colors.background, card.color);
-    doc
-      .fontSize(9)
-      .font(fontBoldPath)
-      .fillColor(card.color)
-      .text(card.title, cardX + 15, cardY + 12, { width: cardWidth - 30 });
-    doc
-      .fontSize(24)
-      .font(fontBoldPath)
-      .fillColor(colors.dark)
-      .text(card.value, cardX + 15, cardY + 30, { width: cardWidth - 30 });
-    doc
-      .fontSize(8)
-      .font(fontPath)
-      .fillColor(colors.lightText)
-      .text(card.unit, cardX + 15, cardY + 60, { width: cardWidth - 30 });
-
-    cardX += cardWidth;
-    cardCount++;
-  });
-
-  currentY = cardY + cardHeight + 30;
-
-  if (currentY + 100 > pageHeight - 100) {
-    doc.addPage();
-    addPageHeader();
-    currentY = 60;
   }
 
-  currentY = addSection("TOPRAK VE SİSTEM BİLGİSİ", currentY);
+  y += cardH + 8;
 
-  const infoBoxWidth = (pageWidth - 80) / 2;
-
-  doc.rect(40, currentY, infoBoxWidth - 10, 80).stroke(colors.border);
-  doc
-    .fontSize(11)
-    .font(fontBoldPath)
-    .fillColor(colors.dark)
-    .text("Toprak Bağlamı", 50, currentY + 10);
-  doc
-    .fontSize(20)
-    .font(fontBoldPath)
-    .fillColor(colors.secondary)
-    .text(latest.soil_context || "--", 50, currentY + 30, {
-      width: infoBoxWidth - 30,
-    });
-
-  doc
-    .rect(40 + infoBoxWidth, currentY, infoBoxWidth - 10, 80)
-    .stroke(colors.border);
-  doc
-    .fontSize(11)
-    .font(fontBoldPath)
-    .fillColor(colors.dark)
-    .text("Sistem Durumu", 50 + infoBoxWidth, currentY + 10);
-  doc
-    .fontSize(18)
-    .font(fontBoldPath)
-    .fillColor(latest.system_status === "OK" ? colors.secondary : colors.accent)
-    .text(latest.system_status || "OK", 50 + infoBoxWidth, currentY + 35, {
-      width: infoBoxWidth - 30,
-    });
-
-  currentY += 100;
-
-  const otherInfo = [
-    { label: "Isıtıcı Gücü", value: `${latest.heater_power || "--"}` },
-    { label: "Sarsıntı Sensörü", value: `${latest.shock || "--"}` },
-  ];
-
-  otherInfo.forEach((info) => {
-    doc
-      .fontSize(9)
-      .font(fontPath)
-      .fillColor(colors.lightText)
-      .text(info.label + ":", 40, currentY);
-    doc
-      .fontSize(9)
-      .font(fontBoldPath)
-      .fillColor(colors.dark)
-      .text(info.value, 150, currentY);
-    currentY += 18;
-  });
-
-  // KOMUT KUYRUGU
-  currentY += 10;
-  if (currentY + 120 > pageHeight - 100) {
-    doc.addPage();
-    addPageHeader();
-    currentY = 60;
-  }
-
-  currentY = addSection("KOMUT KUYRUGU DURUMU", currentY);
+  // Komut Kuyruğu Bölümü
+  y = drawSectionHeader("Komut Kuyruğu Durumu", y);
 
   const queueStats = {
     toplam: commandQueue.length,
@@ -870,375 +827,121 @@ app.get("/api/generate-report", (req, res) => {
     onaylanan: commandQueue.filter((c) => c.status === "ack").length,
   };
 
-  const statsCards = [
-    { label: "Toplam", value: queueStats.toplam, bgColor: "#e3f2fd" },
-    { label: "Beklemede", value: queueStats.beklemede, bgColor: "#fff3e0" },
-    { label: "Gönderilen", value: queueStats.gonderilen, bgColor: "#f3e5f5" },
-    { label: "Onaylanan", value: queueStats.onaylanan, bgColor: "#e8f5e9" },
+  const statLabels = [
+    ["Toplam", queueStats.toplam],
+    ["Beklemede", queueStats.beklemede],
+    ["Gönderilen", queueStats.gonderilen],
+    ["Onaylanan", queueStats.onaylanan],
   ];
 
-  const statWidth = (pageWidth - 80) / 4;
-  statsCards.forEach((stat, idx) => {
-    const statX = 40 + idx * statWidth;
-    doc.rect(statX, currentY, statWidth - 10, 60).fill(stat.bgColor);
-    doc.rect(statX, currentY, statWidth - 10, 60).stroke(colors.border);
+  const statW = (pageW - 48 * 2 - 12) / 4;
+  let statX = 48;
+  statLabels.forEach((s) => {
+    doc.rect(statX, y, statW, 54).fillAndStroke("#ffffff", colors.border);
     doc
-      .fontSize(8)
-      .font(fontPath)
+      .font(fonts.base)
+      .fontSize(9)
       .fillColor(colors.lightText)
-      .text(stat.label, statX + 10, currentY + 10);
+      .text(s[0], statX + 8, y + 8);
     doc
-      .fontSize(20)
-      .font(fontBoldPath)
-      .fillColor(colors.dark)
-      .text(stat.value.toString(), statX + 10, currentY + 25);
+      .font(fonts.bold)
+      .fontSize(18)
+      .fillColor(colors.text)
+      .text(String(s[1]), statX + 8, y + 24);
+    statX += statW + 4;
   });
 
-  currentY += 80;
+  y += 64;
+
+  // Son Komut ID
   doc
+    .font(fonts.base)
     .fontSize(9)
-    .font(fontPath)
     .fillColor(colors.lightText)
-    .text("Son Komut ID:");
+    .text("Son Komut ID:", 48, y);
   doc
+    .font(fonts.bold)
     .fontSize(11)
-    .font(fontBoldPath)
     .fillColor(colors.primary)
-    .text(`#${commandCounter}`, 150, currentY);
+    .text(`#${commandCounter}`, 140, y);
 
-  // SENSÖR KAYITLARI TABLOSU
-  currentY += 30;
-  if (currentY + 150 > pageHeight - 100) {
-    doc.addPage();
-    addPageHeader();
-    currentY = 60;
+  // ----- SENSOR LOG TABLE -----
+  y += 34;
+  y = drawSectionHeader("Son Sensör Kayıtları", y);
+
+  const tableX = 48;
+  const tableW = pageW - tableX * 2;
+  const rowHeight = 14;
+  const headers = ["#", "Tarih/Saat", "Sıcaklık", "Nem", "Fan", "Durum"];
+  const colWidths = [24, 130, 70, 50, 50, tableW - (24 + 130 + 70 + 50 + 50)];
+
+  // header row
+  let cx = tableX;
+  doc.font(fonts.bold).fontSize(9).fillColor(colors.dark);
+  for (let i = 0; i < headers.length; i++) {
+    doc.text(headers[i], cx + 4, y);
+    cx += colWidths[i];
+  }
+  y += 18;
+
+  // rows: last 20 logs
+  const recentLogs = sensorHistory.slice(-20).reverse();
+  doc.font(fonts.base).fontSize(8).fillColor(colors.text);
+  for (let i = 0; i < recentLogs.length; i++) {
+    const log = recentLogs[i];
+    if (y + rowHeight > pageH - 120) {
+      doc.addPage();
+      y = 48;
+    }
+    const f1 = log.f1 === 1 ? "A" : "K";
+    const f2 = log.f2 === 1 ? "A" : "K";
+    const fanStatus = `${f1}/${f2}`;
+
+    cx = tableX;
+    const values = [
+      String(i + 1),
+      log.timestamp || "",
+      `${log.temperature || "--"}°C`,
+      `${log.humidity || "--"}%`,
+      fanStatus,
+      log.system_status || "OK",
+    ];
+    for (let j = 0; j < values.length; j++) {
+      doc.text(values[j], cx + 4, y);
+      cx += colWidths[j];
+    }
+    y += rowHeight;
   }
 
-  currentY = addSection("SON SENSÖR KAYITLARI", currentY);
-
-  const tableHeaderBg = "#f0f7ff";
-  const colWidths = {
-    sira: 30,
-    tarih: 90,
-    sicaklik: 50,
-    nem: 50,
-    fan: 50,
-    durum: 70,
-  };
-
-  const tableX = 40;
-  doc.rect(tableX, currentY, pageWidth - 80, 18).fill(tableHeaderBg);
-
-  const headers = ["Sıra", "Tarih/Saat", "Sıcaklık", "Nem", "Fan", "Durum"];
-  const headerXPositions = [
-    tableX + 5,
-    tableX + colWidths.sira + 5,
-    tableX + colWidths.sira + colWidths.tarih + 5,
-    tableX + colWidths.sira + colWidths.tarih + colWidths.sicaklik + 5,
-    tableX +
-      colWidths.sira +
-      colWidths.tarih +
-      colWidths.sicaklik +
-      colWidths.nem +
-      5,
-    tableX +
-      colWidths.sira +
-      colWidths.tarih +
-      colWidths.sicaklik +
-      colWidths.nem +
-      colWidths.fan +
-      5,
-  ];
-
-  doc.fontSize(9).font(fontBoldPath).fillColor(colors.dark);
-  headers.forEach((header, idx) => {
-    doc.text(header, headerXPositions[idx], currentY + 4);
-  });
-
-  currentY += 20;
-
-  const recentLogs = sensorHistory.slice(-10).reverse();
-  doc.fontSize(8).font(fontPath).fillColor(colors.text);
-
-  for (let idx = 0; idx < recentLogs.length; idx++) {
-    const log = recentLogs[idx];
-    if (currentY + 15 > pageHeight - 50) {
-      doc.addPage();
-      addPageHeader();
-      currentY = 60;
-      doc.rect(tableX, currentY, pageWidth - 80, 18).fill(tableHeaderBg);
-      doc.fontSize(9).font(fontBoldPath).fillColor(colors.dark);
-      headers.forEach((header, i) => {
-        doc.text(header, headerXPositions[i], currentY + 4);
-      });
-      currentY += 20;
-      doc.fontSize(8).font(fontPath).fillColor(colors.text);
-    }
-
-    if (idx % 2 === 0) {
-      doc.rect(tableX, currentY, pageWidth - 80, 14).fill("#fafafa");
-    }
-
-    const f1Status = log.f1 === 1 ? "A" : "K";
-    const f2Status = log.f2 === 1 ? "A" : "K";
-    const fanStatus = `${f1Status}/${f2Status}`;
-
-    doc.text((idx + 1).toString(), headerXPositions[0], currentY + 2);
-    doc.text(log.timestamp, headerXPositions[1], currentY + 2);
-    doc.text(`${log.temperature || "--"}°C`, headerXPositions[2], currentY + 2);
-    doc.text(`${log.humidity || "--"}%`, headerXPositions[3], currentY + 2);
-    doc.text(fanStatus, headerXPositions[4], currentY + 2);
-    doc.text(log.system_status || "OK", headerXPositions[5], currentY + 2);
-
-    currentY += 14;
-  }
-
-  // WEB MESAJLARI
-  if (webMessages.length > 0) {
-    currentY += 20;
-    if (currentY + 100 > pageHeight - 100) {
-      doc.addPage();
-      addPageHeader();
-      currentY = 60;
-    }
-
-    currentY = addSection("SON WEB MESAJLARI", currentY);
-    doc.fontSize(8).font(fontPath).fillColor(colors.text);
-
-    webMessages.forEach((msg) => {
-      if (currentY + 25 > pageHeight - 50) {
+  // ----- WEB MESAJLARI -----
+  y += 16;
+  if (webMessages && webMessages.length > 0) {
+    y = drawSectionHeader("Son Web Mesajları", y);
+    doc.font(fonts.base).fontSize(9).fillColor(colors.text);
+    for (let i = 0; i < webMessages.length; i++) {
+      const msg = webMessages[i];
+      if (y > pageH - 120) {
         doc.addPage();
-        addPageHeader();
-        currentY = 60;
+        y = 48;
       }
-
       doc
-        .rect(40, currentY, pageWidth - 80, 20)
-        .fillAndStroke(colors.background, colors.border);
-      doc
-        .fontSize(8)
-        .font(fontBoldPath)
+        .font(fonts.bold)
+        .fontSize(9)
         .fillColor(colors.primary)
-        .text(`[${msg.timestamp}]`, 50, currentY + 4);
+        .text(`[${msg.timestamp}]`, 48, y);
       doc
-        .fontSize(8)
-        .font(fontPath)
+        .font(fonts.base)
+        .fontSize(9)
         .fillColor(colors.text)
-        .text(msg.text, 150, currentY + 4, { width: pageWidth - 200 });
-
-      currentY += 24;
-    });
-  }
-
-  // FOOTER
-  const pages = doc.bufferedPageRange().count;
-  for (let i = 1; i <= pages; i++) {
-    doc.switchToPage(i);
-    doc.rect(0, pageHeight - 40, pageWidth, 40).fill(colors.background);
-    doc
-      .moveTo(0, pageHeight - 40)
-      .lineTo(pageWidth, pageHeight - 40)
-      .strokeColor(colors.border)
-      .stroke();
-
-    doc.fontSize(8).font(fontPath).fillColor(colors.lightText);
-
-    const leftText = `ANTARES v2.1 | Akıllı Koruma Kapsülü Sistemi`;
-    const rightText = `${new Date().toLocaleString("tr-TR")} | Sayfa ${i}/${pages}`;
-
-    doc.text(leftText, 40, pageHeight - 30);
-    doc.text(rightText, pageWidth - 300, pageHeight - 30, { align: "right" });
-  }
-
-  doc.end();
-});
-app.get("/api/generate-report", (req, res) => {
-  const doc = new PDFDocument({ margin: 50 });
-  const now = Date.now();
-  const fileName = `Antares_Analiz_Raporu_${now}.pdf`;
-
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
-
-  doc.pipe(res);
-
-  // ✅ Türkçe destekleyen fontlar (Helvetica fallback)
-  const fontPath = "Helvetica";
-  const fontBoldPath = "Helvetica-Bold";
-
-  // --- ARKA PLAN VE ÇERÇEVE ---
-  doc.rect(20, 20, 555, 780).strokeColor("#e2e8f0").lineWidth(1).stroke();
-
-  // --- HEADER SECTION ---
-  doc
-    .font(fontBoldPath)
-    .fillColor("#0f172a")
-    .fontSize(28)
-    .text("ANTARES", 50, 40, { lineGap: 5 })
-    .font(fontPath)
-    .fontSize(10)
-    .fillColor("#64748b")
-    .text("AKILLI KORUMA KAPSULU | DIJITAL IKIZ SISTEMI", 50, 72, {
-      tracking: 1.2,
-    });
-
-  // Sağ üst köşe - Rapor Bilgileri
-  doc
-    .font(fontPath)
-    .fillColor("#0f172a")
-    .fontSize(8)
-    .text(`RAPOR ID: #ANT-${now.toString().slice(-6)}`, 50, 100, {
-      align: "right",
-      width: 500,
-    })
-    .text(`TARIH: ${new Date().toLocaleString("tr-TR")}`, 50, 112, {
-      align: "right",
-      width: 500,
-    });
-
-  // --- DIVIDER ---
-  doc.moveTo(50, 130).lineTo(550, 130).stroke("#e2e8f0");
-
-  // --- SYSTEM STATUS SECTION ---
-  doc
-    .font(fontBoldPath)
-    .fontSize(12)
-    .fillColor("#0f172a")
-    .text("SISTEM DURUMU", 50, 150);
-
-  doc.font(fontPath).fontSize(9).fillColor("#2d3436");
-
-  const latest = sensorHistory[sensorHistory.length - 1] || {
-    temperature: "--",
-    humidity: "--",
-    soil_context: "--",
-  };
-
-  const statusLines = [
-    `Guncel Sicaklik: ${latest.temperature || "--"}°C`,
-    `Guncel Nem Orani: %${latest.humidity || "--"}`,
-    `Toprak Baglami: ${latest.soil_context || "--"}`,
-    `Fan 1 (Salyangoz) Durumu: ${hardwareState.f1 === 1 ? "ACIK" : "KAPALI"}`,
-    `Fan 2 (Duz Fan) Durumu: ${hardwareState.f2 === 1 ? "ACIK" : "KAPALI"}`,
-    `Isitici Gucu: ${latest.heater_power || "--"}`,
-    `Sarsinti Sensoru: ${latest.shock || "--"}`,
-    `Sistem Durumu: ${latest.system_status || "OK"}`,
-  ];
-
-  let yPos = 170;
-  statusLines.forEach((line) => {
-    doc.text(line, 60, yPos);
-    yPos += 15;
-  });
-
-  // --- COMMAND QUEUE STATUS ---
-  yPos += 10;
-  doc
-    .font(fontBoldPath)
-    .fontSize(12)
-    .fillColor("#0f172a")
-    .text("KOMUT KUYRUGU DURUMU", 50, yPos);
-
-  yPos += 20;
-  doc.font(fontPath).fontSize(9).fillColor("#2d3436");
-
-  const queueStats = {
-    toplamKomut: commandQueue.length,
-    beklemedeKomut: commandQueue.filter((c) => c.status === "pending").length,
-    gonderilenKomut: commandQueue.filter((c) => c.status === "sent").length,
-    onaylananKomut: commandQueue.filter((c) => c.status === "ack").length,
-  };
-
-  const queueLines = [
-    `Toplam Komut: ${queueStats.toplamKomut}`,
-    `Beklemede Komut: ${queueStats.beklemedeKomut}`,
-    `Gonderllen Komut: ${queueStats.gonderilenKomut}`,
-    `Onaylanan Komut: ${queueStats.onaylananKomut}`,
-    `Son Komut ID: ${commandCounter}`,
-  ];
-
-  queueLines.forEach((line) => {
-    doc.text(line, 60, yPos);
-    yPos += 15;
-  });
-
-  // --- SON 10 SENSÖR KAYDI ---
-  yPos += 10;
-  doc
-    .font(fontBoldPath)
-    .fontSize(11)
-    .fillColor("#0f172a")
-    .text("SON SENSOR KAYITLARI", 50, yPos);
-
-  yPos += 18;
-  doc.font(fontPath).fontSize(8).fillColor("#2d3436");
-
-  // Tablo basligi
-  doc.text("Sira", 50, yPos, { width: 30 });
-  doc.text("Tarih/Saat", 80, yPos, { width: 90 });
-  doc.text("Sicaklik", 170, yPos, { width: 50 });
-  doc.text("Nem", 220, yPos, { width: 40 });
-  doc.text("Fan1/F2", 260, yPos, { width: 50 });
-  doc.text("Durum", 310, yPos, { width: 50 });
-
-  yPos += 10;
-  doc.moveTo(50, yPos).lineTo(550, yPos).stroke("#d0d0d0");
-  yPos += 8;
-
-  // Son 10 kaydı göster
-  const recentLogs = sensorHistory.slice(-10).reverse();
-  for (let idx = 0; idx < recentLogs.length; idx++) {
-    const log = recentLogs[idx];
-    const f1Status = log.f1 === 1 ? "A" : "K";
-    const f2Status = log.f2 === 1 ? "A" : "K";
-    const logLine = `${idx + 1}. ${log.timestamp} | ${log.temperature || "--"}C | %${log.humidity || "--"} | ${f1Status}/${f2Status} | ${log.system_status || "OK"}`;
-
-    doc.text(logLine, 50, yPos, { width: 500, fontSize: 7 });
-    yPos += 10;
-
-    if (yPos > 700) break; // Sayfayı aşırsa durdur
-  }
-
-  // --- WEB MESAJLARI ---
-  if (webMessages.length > 0) {
-    yPos += 10;
-    if (yPos > 680) {
-      doc.addPage();
-      yPos = 50;
+        .text(` ${msg.text}`, 48 + 90, y, { width: pageW - 48 * 2 - 90 });
+      y += 18;
     }
-
-    doc
-      .font(fontBoldPath)
-      .fontSize(11)
-      .fillColor("#0f172a")
-      .text("SON WEB MESAJLARI", 50, yPos);
-
-    yPos += 18;
-    doc.font(fontPath).fontSize(8).fillColor("#2d3436");
-
-    webMessages.forEach((msg, idx) => {
-      doc.text(`${idx + 1}. [${msg.timestamp}] ${msg.text}`, 60, yPos, {
-        width: 480,
-      });
-      yPos += 10;
-    });
   }
 
-  // --- FOOTER ---
-  doc
-    .font(fontPath)
-    .fontSize(7)
-    .fillColor("#94a3b8")
-    .text("ANTARES v2.1 | Akilli Koruma Kapsulu Sistem Raporu", 50, 760, {
-      align: "center",
-    })
-    .text(
-      `Rapor Olusturma Tarihi: ${new Date().toLocaleString("tr-TR")} | Kayit Sayisi: ${sensorHistory.length}`,
-      50,
-      770,
-      { align: "center" },
-    );
+  // Add footer to all pages
+  addFooter();
 
+  // Finalize PDF
   doc.end();
 });
 
