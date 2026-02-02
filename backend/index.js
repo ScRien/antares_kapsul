@@ -134,7 +134,7 @@ app.get("/", (req, res) => {
                               } ml-2">${cmd.status.toUpperCase()}</span>
                             </div>
                             <div class="mt-1 text-slate-400">Deger: <span class="text-slate-200">${cmd.value}</span></div>
-                            <div class="text-[10px] text-slate-500 mt-1">${new Date(cmd.timestamp).toLocaleTimeString("tr-TR")}</div>
+                            <div class="text-[10px] text-slate-500 mt-1">${cmd.timestamp ? new Date(cmd.timestamp).toLocaleTimeString("tr-TR") : "--"}</div>
                           </div>
                           <button onclick="deleteCommand(${cmd.id})" class="btn-danger text-white px-2 py-1 rounded text-[10px] ml-2 hover:brightness-110 active:scale-95">
                               <i class="fa-solid fa-trash"></i>
