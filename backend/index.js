@@ -731,23 +731,92 @@ app.get("/api/stream", (req, res) => {
   }
 });
 
-// ============= OTOMATIK 15 SANİYE ARALIGI =============
+// ============= CANLΙ MOD YÖNETIMI (Frontend tarafından kontrol edilir) =============
+// ✅ Otomatik 15sn loop KALDIRILD - Frontend /api/live-mode-start ile kontrol eder
+// Manuel vs Otomatik mod karışmıyor
 
-const AUTO_CAPTURE_INTERVAL = 15000;
+let liveModeActive = false;
+let liveModeInterval = null;
 
-setInterval(() => {
-  commandQueue.push({
-    id: ++commandCounter,
-    type: "capture_live",
-    value: "AUTO_LIVE_FRAME",
-    status: "pending",
-    timestamp: Date.now(),
-  });
+// 🟢 Canlı modu başlat (5 dakika, 10sn aralığında çekme)
+app.post("/api/live-mode-start", (req, res) => {
+  if (liveModeActive) {
+    return res.json({
+      success: false,
+      message: "Canlı mod zaten aktif",
+    });
+  }
 
+  liveModeActive = true;
   console.log(
-    `⏰ [OTOMATİK 15SN] Canli kare komutu (ID: ${commandCounter}) siray alindi`,
+    "🟢 ===== CANLΙ MOD BAŞLADI ===== 5 dakika / 10sn aralığında otomatik çekme",
   );
-}, AUTO_CAPTURE_INTERVAL);
+
+  // 10 saniyede bir otomatik çekme
+  liveModeInterval = setInterval(() => {
+    commandQueue.push({
+      id: ++commandCounter,
+      type: "capture_live",
+      value: "AUTO_LIVE_FRAME (5MIN_MODE)",
+      status: "pending",
+      timestamp: Date.now(),
+    });
+    const pending = commandQueue.filter((c) => c.status === "pending").length;
+    console.log(
+      `⏰ [CANLΙ MOD] Kare #${commandCounter} sırada (${pending} pending)`,
+    );
+  }, 10000); // 10 saniye
+
+  // 5 dakika sonra otomatik durdur
+  setTimeout(
+    () => {
+      clearInterval(liveModeInterval);
+      liveModeActive = false;
+      console.log("🔴 ===== CANLΙ MOD BİTTİ ===== 5 dakika tamamlandı");
+    },
+    5 * 60 * 1000,
+  ); // 5 dakika = 300000ms
+
+  res.json({
+    success: true,
+    message: "Canlı mod başlatıldı",
+    duration: "5 dakika (≈30 otomatik çekme bekleniyor)",
+    interval: "10 saniye",
+  });
+});
+
+// ⏹ Canlı modu durdur (manuel durdurma)
+app.post("/api/live-mode-stop", (req, res) => {
+  if (!liveModeActive) {
+    return res.json({
+      success: false,
+      message: "Canlı mod zaten inaktif",
+    });
+  }
+
+  clearInterval(liveModeInterval);
+  liveModeActive = false;
+  console.log("⏹ ===== CANLΙ MOD DURDURULDU ===== (Kullanıcı tarafından)");
+
+  res.json({ success: true, message: "Canlı mod durduruldu" });
+});
+
+// 📊 Canlı mod durumunu kontrol et
+app.get("/api/live-mode-status", (req, res) => {
+  const pending = commandQueue.filter((c) => c.status === "pending").length;
+  const sent = commandQueue.filter((c) => c.status === "sent").length;
+  const acked = commandQueue.filter((c) => c.status === "ack").length;
+
+  res.json({
+    active: liveModeActive,
+    queueStats: {
+      total: commandQueue.length,
+      pending,
+      sent,
+      acked,
+    },
+  });
+});
 
 // ============= LOG & BULUT ENDPOINTS =============
 
@@ -806,6 +875,7 @@ app.get("/api/queue-status", (req, res) => {
 });
 
 // PDF RAPOR
+const path = require("path");
 const fs = require("fs");
 
 app.get("/api/generate-report", (req, res) => {
@@ -862,7 +932,7 @@ app.get("/api/generate-report", (req, res) => {
   const TOP = M;
 
   // ---------- Fonts (Türkçe için garanti) ----------
-  // assets/fonts içine NotoSans-Regular.ttf ve NotoSans-Bold.ttf koyman en sağlamı.
+  // assets/fonts içine NotoSans-Regular.ttf ve NotoSans-Bold.ttf koymalısın
   const fontDir = path.join(__dirname, "assets", "fonts");
 
   const families = [
@@ -874,26 +944,53 @@ app.get("/api/generate-report", (req, res) => {
 
   const fonts = { base: "Helvetica", bold: "Helvetica-Bold" };
 
+  // 🔍 Font yükleme debugging
+  let fontLoaded = false;
+  console.log(`[PDF] Font dizini arıyor: ${fontDir}`);
+
   for (const fam of families) {
     const regPath = path.join(fontDir, fam.regular);
     const boldPath = path.join(fontDir, fam.bold);
 
-    if (fs.existsSync(regPath)) {
+    const regExists = fs.existsSync(regPath);
+    const boldExists = fs.existsSync(boldPath);
+
+    console.log(
+      `[PDF] Kontrol: ${fam.regular} -> ${regExists ? "✅ Bulundu" : "❌ Bulunamadı"}`,
+    );
+
+    if (regExists) {
       try {
         doc.registerFont("BaseFont", regPath);
         fonts.base = "BaseFont";
+        console.log(`[PDF] ✅ BaseFont kaydedildi: ${fam.regular}`);
 
-        if (fs.existsSync(boldPath)) {
+        if (boldExists) {
           doc.registerFont("BaseBold", boldPath);
           fonts.bold = "BaseBold";
+          console.log(`[PDF] ✅ BaseBold kaydedildi: ${fam.bold}`);
         } else {
           fonts.bold = fonts.base;
+          console.log(`[PDF] ⚠️ Bold font bulunamadı, regular kullanılıyor`);
         }
+        fontLoaded = true;
         break;
       } catch (e) {
-        // fallback to built-ins
+        console.error(
+          `[PDF] ❌ Font kaydı hatası (${fam.regular}):`,
+          e.message,
+        );
       }
     }
+  }
+
+  if (!fontLoaded) {
+    console.warn(
+      "[PDF] ⚠️ Hiçbir Türkçe font bulunamadı, Helvetica fallback kullanılıyor (Türkçe karakterler bozulabilir)",
+    );
+    console.warn(
+      "[PDF] 💡 Çözüm: backend/assets/fonts/ klasörüne NotoSans-Regular.ttf ve NotoSans-Bold.ttf ekle",
+    );
   }
 
   // ---------- Theme ----------
@@ -1235,7 +1332,7 @@ app.get("/api/generate-report", (req, res) => {
   // Sensor table
   section("Son Sensör Kayıtları");
 
-  const recentLogs = sensorHistory.slice(-30).reverse(); // biraz artırdım ama taşma yönetimli
+  const recentLogs = sensorHistory.slice(-30).reverse();
   const headers = ["#", "Tarih/Saat", "Sıcaklık", "Nem", "Fan", "Durum"];
   const colWidths = [
     24,
@@ -1297,6 +1394,7 @@ app.get("/api/generate-report", (req, res) => {
   addFooterAllPages();
 
   // Finalize
+  console.log(`[PDF] ✅ Rapor oluşturuldu: ${fileName} (Font: ${fonts.base})`);
   doc.end();
 });
 
@@ -1325,4 +1423,5 @@ app.listen(PORT, () => {
   console.log("📄 RAPORLAR: PDF raporlar otomatik oluşturuluyor");
   console.log("🧹 TEMIZLEME: Komut, mesaj ve sensör geçmişi temizleme aktif");
   console.log("");
+  console.log("http://localhost:3000");
 });

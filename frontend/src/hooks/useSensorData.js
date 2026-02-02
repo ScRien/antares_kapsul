@@ -1,54 +1,91 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 
 const API_BASE = "https://antares-backend.onrender.com/api";
 
-export function useSensorData(token, isLoggedIn) {
-  const [data, setData] = useState({
-    t: "--",
-    h: "--",
-    s: "Olculuyor...",
-    f1: 0,
-    f2: 0,
+export const useSensorData = () => {
+  const [sensorData, setSensorData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [liveModeStatus, setLiveModeStatus] = useState({
+    active: false,
+    queueStats: { total: 0, pending: 0, sent: 0, acked: 0 },
   });
-  const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
 
+  // ============= SENSÖR VERİSİ POLLING (15 saniye) =============
   useEffect(() => {
-    // Login olmadiysa veri cekme
-    if (!isLoggedIn || !token) {
-      return;
-    }
-
-    const client = axios.create({
-      baseURL: API_BASE,
-      timeout: 8000,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const fetchData = async () => {
+    const fetchSensorData = async () => {
       try {
-        const res = await client.get("/data");
-        if (res.data && typeof res.data === "object") {
-          setData(res.data);
-          setLastDataUpdate(new Date());
-        }
-      } catch (e) {
-        // Sessiz basarısız - Backend olmadığında hata gösterme
-        if (e.response?.status === 401) {
-          console.warn("Token expired or invalid");
-        }
+        const res = await fetch(`${API_BASE}/data`);
+        const data = await res.json();
+        setSensorData(data);
+        setError(null);
+      } catch (err) {
+        setError("Sensör verisi alınamadı: " + err.message);
+        console.error("❌ Sensör hata:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
-    // İlk çekme
-    fetchData();
-
-    // 15 saniyede bir veri çek (sistem performansı için, eski: 2 saniye)
-    const interval = setInterval(fetchData, 15000);
+    fetchSensorData();
+    const interval = setInterval(fetchSensorData, 15000); // 15 saniye
     return () => clearInterval(interval);
-  }, [token, isLoggedIn]);
+  }, []);
 
-  return { data, lastDataUpdate };
-}
+  // ============= CANLΙ MOD DURUMU POLLING (5 saniye) =============
+  useEffect(() => {
+    const checkLiveModeStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/live-mode-status`);
+        const data = await res.json();
+        setLiveModeStatus(data);
+      } catch (err) {
+        console.error("❌ Canlı mod durum hatası:", err);
+      }
+    };
+
+    checkLiveModeStatus();
+    const interval = setInterval(checkLiveModeStatus, 5000); // 5 saniye
+    return () => clearInterval(interval);
+  }, []);
+
+  return { sensorData, loading, error, liveModeStatus };
+};
+
+// ============= CANLΙ MOD KONTROL FONKSİYONLARI =============
+
+export const startLiveMode = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/live-mode-start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.message);
+    }
+    console.log("✅ Canlı mod başlatıldı");
+    return data;
+  } catch (err) {
+    console.error("❌ Canlı mod başlatma hatası:", err);
+    throw err;
+  }
+};
+
+export const stopLiveMode = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/live-mode-stop`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.message);
+    }
+    console.log("✅ Canlı mod durduruldu");
+    return data;
+  } catch (err) {
+    console.error("❌ Canlı mod durdurma hatası:", err);
+    throw err;
+  }
+};

@@ -8,14 +8,22 @@ export default function StreamCard() {
   const [lastCapture, setLastCapture] = useState(new Date());
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [remainingTime, setRemainingTime] = useState(0);
+  const [queueStats, setQueueStats] = useState({
+    total: 0,
+    pending: 0,
+    sent: 0,
+    acked: 0,
+  });
 
-  // Canlı mod zamanlayıcısı (5 dakika = 300 saniye)
+  // ============= CANLΙ MOD ZAMANLAYICISI (5 dakika = 300 saniye) =============
   useEffect(() => {
     if (!isLiveMode) return;
 
     const timer = setInterval(() => {
       setRemainingTime((prev) => {
         if (prev <= 1) {
+          // Mod otomatik biterse, backend'e durdur mesajı gönder
+          handleStopLiveBackend();
           setIsLiveMode(false);
           return 0;
         }
@@ -26,18 +34,32 @@ export default function StreamCard() {
     return () => clearInterval(timer);
   }, [isLiveMode]);
 
-  // 10 saniyede bir canlı görüntü yenile (canlı mod aktifse)
+  // ============= DURUM KONTROL (5 saniyede bir) =============
+  // Backend'den canlı mod durumunu ve queue istatistiklerini kontrol et
   useEffect(() => {
     if (!isLiveMode) return;
 
-    const autoRefresh = setInterval(() => {
-      handleCaptureLive(true); // otomatik çekme için flag
-    }, 10000); // 10 saniye
+    const statusCheck = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/live-mode-status`);
+        const data = await res.json();
 
-    return () => clearInterval(autoRefresh);
+        if (data.active) {
+          setQueueStats(data.queueStats);
+        } else {
+          // Eğer backend'de mod inaktif ise, frontend'i de durdur
+          setIsLiveMode(false);
+          setRemainingTime(0);
+        }
+      } catch (err) {
+        console.error("❌ Durum kontrol hatası:", err);
+      }
+    }, 5000); // 5 saniye
+
+    return () => clearInterval(statusCheck);
   }, [isLiveMode]);
 
-  // Metadata güncelle
+  // ============= METADATA GÜNCELLEME =============
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
@@ -47,55 +69,71 @@ export default function StreamCard() {
           setFrameTime(data.frameTimestamp);
         }
       } catch (err) {
-        console.error("Frame metadata hatası:", err);
+        console.error("❌ Frame metadata hatası:", err);
       }
     };
 
     fetchMetadata();
   }, [lastCapture]);
 
-  // Canlı görüntü al
-  const handleCaptureLive = async (isAuto = false) => {
-    if (!isAuto) {
-      setLoading(true);
-      setIsLiveMode(true);
-      setRemainingTime(300); // 5 dakika
-    }
-
-    console.log(
-      isAuto
-        ? "🔄 Otomatik canlı görüntü yenileniyor..."
-        : "📸 Canlı kare çekiliyor...",
-    );
+  // ============= CANLΙ MODU BAŞLAT =============
+  const handleStartLive = async () => {
+    setLoading(true);
+    console.log("🟢 Canlı mod başlatılıyor...");
 
     try {
-      const response = await fetch(`${API_BASE}/capture-live`, {
-        method: "GET",
+      const res = await fetch(`${API_BASE}/live-mode-start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
       });
 
-      if (response.ok) {
-        // 2-3 saniye bekle (ESP32'nin çekip göndermesi için)
-        await new Promise((resolve) => setTimeout(resolve, 2500));
+      const data = await res.json();
 
-        // Sonra metadata güncelle
-        setLastCapture(new Date());
-        console.log("✅ Frame alındı!");
+      if (data.success) {
+        setIsLiveMode(true);
+        setRemainingTime(300); // 5 dakika = 300 saniye
+        setQueueStats({ total: 0, pending: 0, sent: 0, acked: 0 });
+        console.log("✅ Canlı mod başladı! 5 dakika (≈30 frame)");
+      } else {
+        console.error("❌ Canlı mod başlatılamadı:", data.message);
+        alert("Canlı mod başlatılamadı: " + data.message);
       }
     } catch (err) {
-      console.error("❌ Frame çekme hatası:", err);
+      console.error("❌ Hata:", err);
+      alert("Bağlantı hatası!");
     } finally {
-      if (!isAuto) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
-  // Canlı modu durdur
-  const handleStopLive = () => {
+  // ============= CANLΙ MODU DURDUR (Manual) =============
+  const handleStopLive = async () => {
+    console.log("⏹ Canlı mod durdurulüyor...");
+    await handleStopLiveBackend();
     setIsLiveMode(false);
     setRemainingTime(0);
   };
 
+  // ============= BACKEND'E DURDUR GÖNDERİ =============
+  const handleStopLiveBackend = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/live-mode-stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        console.log("✅ Canlı mod durdu");
+      } else {
+        console.error("Backend'de durdurma hatası:", data.message);
+      }
+    } catch (err) {
+      console.error("❌ Durdurma hatası:", err);
+    }
+  };
+
+  // ============= KALANLANTTI ZAMANI FORMATLA =============
   const formatRemainingTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -104,14 +142,15 @@ export default function StreamCard() {
 
   return (
     <div className="bg-white p-5 rounded-[20px] shadow-sm">
+      {/* BAŞLIK */}
       <div className="flex justify-between items-center mb-4 border-b border-[#f0f0f0] pb-2">
         <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px]">
-          Canli Yayin (Dijital Ikiz)
+          Canlı Yayın (Dijital İkiz)
         </span>
         <div className="flex items-center gap-2">
           {isLiveMode && (
             <span className="text-[0.65rem] text-[#ff6b6b] font-bold animate-pulse">
-              ● CANLI - {formatRemainingTime(remainingTime)}
+              🔴 CANLΙ - {formatRemainingTime(remainingTime)}
             </span>
           )}
           {frameTime && !isLiveMode && (
@@ -127,6 +166,7 @@ export default function StreamCard() {
         </div>
       </div>
 
+      {/* VİDEO ÇERÇEVE */}
       <div className="w-full h-[450px] bg-[#111] rounded-2xl overflow-hidden relative mb-3">
         <img
           src={`${API_BASE}/stream?t=${lastCapture.getTime()}`}
@@ -136,40 +176,51 @@ export default function StreamCard() {
           onError={() => console.error("❌ Frame yükleme hatası")}
         />
 
-        {/* Status göstergesi */}
-        <div className="absolute top-2 right-2 bg-[#00d2ff] text-white text-[10px] px-2 py-1 rounded">
-          {loading ? "⏳ Çekiliyor..." : isLiveMode ? "CANLI 🔴" : "Hazır 🟢"}
+        {/* DURUM GÖSTERGESİ */}
+        <div className="absolute top-2 right-2 bg-[#00d2ff] text-white text-[10px] px-2 py-1 rounded font-bold">
+          {loading ? "⏳ Çekiliyor..." : isLiveMode ? "CANLΙ 🔴" : "Hazır 🟢"}
         </div>
+
+        {/* QUEUE SAYACI (Canlı mod aktifse) */}
+        {isLiveMode && (
+          <div className="absolute bottom-2 right-2 bg-[#ff6b6b] text-white text-[10px] px-2 py-1 rounded font-bold">
+            📦 {queueStats.pending} pending
+          </div>
+        )}
       </div>
 
-      {/* Butonlar */}
+      {/* BUTONLAR */}
       <div className="space-y-2">
         {!isLiveMode ? (
           <button
-            onClick={() => handleCaptureLive(false)}
+            onClick={handleStartLive}
             disabled={loading}
             className="w-full bg-[#00d2ff] hover:bg-[#0099cc] disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-95"
           >
-            {loading ? "⏳ Çekiliyor..." : "📸 Canli Goruntuyu Al (5 dk)"}
+            {loading ? "⏳ Çekiliyor..." : "📸 Canlı Görüntüyü Al (5 dk)"}
           </button>
         ) : (
           <button
             onClick={handleStopLive}
             className="w-full bg-[#ff6b6b] hover:bg-[#ff5252] text-white font-bold py-3 px-4 rounded-xl transition-all active:scale-95"
           >
-            ⏹ Canli Modu Durdur
+            ⏹ Canlı Modu Durdur
           </button>
         )}
       </div>
 
-      {/* Bilgi notu */}
+      {/* BİLGİ NOTU */}
       {isLiveMode && (
         <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100 text-xs text-gray-600">
           <p>
             📌 Canlı mod 5 dakika boyunca her 10 saniyede görüntü
             yenilenecektir.
           </p>
-          <p className="mt-1">Bkz: ~30 istek (5 dakika / 10 saniye)</p>
+          <p className="mt-1">Beklenen: ~30 istek (5 dakika ÷ 10 saniye)</p>
+          <p className="mt-1 text-gray-500">
+            Pending: {queueStats.pending} | Gönderilen: {queueStats.sent} |
+            Onaylanan: {queueStats.acked}
+          </p>
         </div>
       )}
     </div>
