@@ -1,0 +1,523 @@
+// PDF RAPOR
+const path = require("path");
+const fs = require("fs");
+
+app.get("/api/generate-report", (req, res) => {
+  // ---- Safety: tek handler olduğundan emin ol ----
+  // (Projede "generate-report" aratıp eski kopyaları sil)
+
+  const generatedAt = new Date();
+  const isoDate = generatedAt.toISOString().split("T")[0];
+  const fileName = `Antares_Analiz_Raporu_${isoDate}.pdf`;
+
+  // Response headers
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+  const doc = new PDFDocument({
+    size: "A4",
+    margin: 40,
+    bufferPages: true,
+    compress: true,
+    autoFirstPage: true,
+  });
+
+  // Pipe
+  doc.pipe(res);
+
+  // Abort / error safety (Render'da "write after end" vb. keser)
+  const safeEnd = () => {
+    try {
+      if (!doc._ended) doc.end();
+    } catch (_) {}
+  };
+  res.on("close", safeEnd);
+  doc.on("error", (err) => {
+    console.error("❌ PDFKit error:", err);
+    try {
+      if (!res.headersSent) res.status(500);
+      res.end();
+    } catch (_) {}
+    safeEnd();
+  });
+
+  // ---------- Layout constants ----------
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
+
+  const M = 40;
+  const LEFT = M;
+  const RIGHT = pageW - M;
+  const CONTENT_W = RIGHT - LEFT;
+
+  const FOOTER_H = 34; // footer çizim alanı
+  const FOOTER_GAP = 10; // içerik ile footer arası
+  const SAFE_BOTTOM = pageH - M - FOOTER_H - FOOTER_GAP;
+  const TOP = M;
+
+  // ---------- Fonts (Türkçe için garanti) ----------
+  // assets/fonts içine NotoSans-Regular.ttf ve NotoSans-Bold.ttf koymalısın
+  const fontDir = path.join(__dirname, "assets", "fonts");
+
+  const families = [
+    { regular: "NotoSans-Regular.ttf", bold: "NotoSans-Bold.ttf" },
+    { regular: "DejaVuSans.ttf", bold: "DejaVuSans-Bold.ttf" },
+    { regular: "Roboto-Regular.ttf", bold: "Roboto-Bold.ttf" },
+    { regular: "Inter-Regular.ttf", bold: "Inter-Bold.ttf" },
+  ];
+
+  const fonts = { base: "Helvetica", bold: "Helvetica-Bold" };
+
+  // 🔍 Font yükleme debugging
+  let fontLoaded = false;
+  console.log(`[PDF] Font dizini arıyor: ${fontDir}`);
+
+  for (const fam of families) {
+    const regPath = path.join(fontDir, fam.regular);
+    const boldPath = path.join(fontDir, fam.bold);
+
+    const regExists = fs.existsSync(regPath);
+    const boldExists = fs.existsSync(boldPath);
+
+    console.log(
+      `[PDF] Kontrol: ${fam.regular} -> ${regExists ? "✅ Bulundu" : "❌ Bulunamadı"}`,
+    );
+
+    if (regExists) {
+      try {
+        doc.registerFont("BaseFont", regPath);
+        fonts.base = "BaseFont";
+        console.log(`[PDF] ✅ BaseFont kaydedildi: ${fam.regular}`);
+
+        if (boldExists) {
+          doc.registerFont("BaseBold", boldPath);
+          fonts.bold = "BaseBold";
+          console.log(`[PDF] ✅ BaseBold kaydedildi: ${fam.bold}`);
+        } else {
+          fonts.bold = fonts.base;
+          console.log(`[PDF] ⚠️ Bold font bulunamadı, regular kullanılıyor`);
+        }
+        fontLoaded = true;
+        break;
+      } catch (e) {
+        console.error(
+          `[PDF] ❌ Font kaydı hatası (${fam.regular}):`,
+          e.message,
+        );
+      }
+    }
+  }
+
+  if (!fontLoaded) {
+    console.warn(
+      "[PDF] ⚠️ Hiçbir Türkçe font bulunamadı, Helvetica fallback kullanılıyor (Türkçe karakterler bozulabilir)",
+    );
+    console.warn(
+      "[PDF] 💡 Çözüm: backend/assets/fonts/ klasörüne NotoSans-Regular.ttf ve NotoSans-Bold.ttf ekle",
+    );
+  }
+
+  // ---------- Theme ----------
+  const colors = {
+    primary: "#00d2ff",
+    secondary: "#10ac84",
+    dark: "#0f172a",
+    text: "#2d3436",
+    lightText: "#64748b",
+    border: "#e6eef6",
+    surface: "#fbfdff",
+    accent: "#ff9f43",
+  };
+
+  // ---------- Helpers ----------
+  const reportId = `ANT-${Date.now().toString().slice(-8)}`;
+
+  let y = TOP;
+
+  function setBody() {
+    doc.font(fonts.base).fontSize(10).fillColor(colors.text);
+  }
+
+  function ensureSpace(needed, onNewPage) {
+    if (y + needed > SAFE_BOTTOM) {
+      doc.addPage();
+      y = TOP;
+      if (onNewPage) onNewPage();
+    }
+  }
+
+  function section(title) {
+    ensureSpace(34);
+    doc.save();
+    doc
+      .font(fonts.bold)
+      .fontSize(14)
+      .fillColor(colors.primary)
+      .text(title, LEFT, y);
+    doc
+      .moveTo(LEFT, y + 18)
+      .lineTo(RIGHT, y + 18)
+      .lineWidth(0.7)
+      .strokeColor(colors.border)
+      .stroke();
+    doc.restore();
+    y += 30;
+  }
+
+  function card(x, y0, w, h, title, value, valueColor) {
+    doc.save();
+    doc.roundedRect(x, y0, w, h, 12).fill("#ffffff");
+    doc.roundedRect(x, y0, w, h, 12).lineWidth(1).stroke(colors.border);
+
+    doc
+      .font(fonts.bold)
+      .fontSize(10)
+      .fillColor(valueColor)
+      .text(title, x + 12, y0 + 10, {
+        width: w - 24,
+        lineBreak: false,
+        ellipsis: true,
+      });
+
+    doc
+      .font(fonts.base)
+      .fontSize(18)
+      .fillColor(colors.text)
+      .text(value, x + 12, y0 + 30, {
+        width: w - 24,
+        lineBreak: false,
+        ellipsis: true,
+      });
+    doc.restore();
+  }
+
+  function drawTable(headers, rows, colWidths) {
+    const headH = 18;
+    const rowH = 14;
+
+    const drawHeaderRow = () => {
+      ensureSpace(headH + rowH);
+      doc.save();
+      doc.font(fonts.bold).fontSize(9).fillColor(colors.dark);
+
+      let cx = LEFT;
+      for (let i = 0; i < headers.length; i++) {
+        doc.text(headers[i], cx + 4, y, {
+          width: colWidths[i] - 8,
+          lineBreak: false,
+          ellipsis: true,
+        });
+        cx += colWidths[i];
+      }
+
+      doc
+        .moveTo(LEFT, y + headH - 4)
+        .lineTo(RIGHT, y + headH - 4)
+        .lineWidth(0.7)
+        .strokeColor(colors.border)
+        .stroke();
+
+      doc.restore();
+      y += headH;
+    };
+
+    drawHeaderRow();
+    doc.font(fonts.base).fontSize(8).fillColor(colors.text);
+
+    for (const r of rows) {
+      ensureSpace(rowH, drawHeaderRow);
+
+      let cx = LEFT;
+      for (let i = 0; i < r.length; i++) {
+        doc.text(String(r[i] ?? ""), cx + 4, y, {
+          width: colWidths[i] - 8,
+          lineBreak: false,
+          ellipsis: true,
+        });
+        cx += colWidths[i];
+      }
+      y += rowH;
+    }
+  }
+
+  function addFooterAllPages() {
+    const range = doc.bufferedPageRange(); // { start, count }
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+
+      const bottomY = pageH - M - FOOTER_H + 6;
+
+      doc.save();
+      // footer divider
+      doc
+        .moveTo(LEFT, pageH - M - FOOTER_H)
+        .lineTo(RIGHT, pageH - M - FOOTER_H)
+        .lineWidth(0.6)
+        .strokeColor(colors.border)
+        .stroke();
+
+      doc.font(fonts.base).fontSize(8).fillColor(colors.lightText);
+
+      doc.text(`ANTARES v2.1 • ${reportId}`, LEFT, bottomY, {
+        width: CONTENT_W / 2,
+      });
+      doc.text(
+        `${generatedAt.toLocaleString("tr-TR")} • Sayfa ${i + 1}/${range.count}`,
+        LEFT,
+        bottomY,
+        { width: CONTENT_W, align: "right" },
+      );
+      doc.restore();
+    }
+  }
+
+  // ---------- Data ----------
+  const latest = sensorHistory[sensorHistory.length - 1] || {
+    temperature: "--",
+    humidity: "--",
+    soil_context: "--",
+    heater_power: "--",
+    shock: "--",
+    system_status: "OK",
+    f1: 0,
+    f2: 0,
+    timestamp: "--",
+  };
+
+  // ---------- COVER PAGE ----------
+  doc.save();
+  doc.rect(0, 0, pageW, pageH).fill(colors.surface);
+
+  doc.rect(LEFT, 70, 8, 120).fill(colors.primary);
+
+  doc
+    .font(fonts.bold)
+    .fontSize(36)
+    .fillColor(colors.dark)
+    .text("ANTARES", LEFT + 18, 82);
+
+  doc
+    .font(fonts.base)
+    .fontSize(14)
+    .fillColor(colors.lightText)
+    .text(
+      "Akıllı Koruma Kapsülü | Dijital İkiz & Analiz Raporu",
+      LEFT + 18,
+      128,
+    );
+
+  // meta box
+  const metaY = 210;
+  const boxW = pageW - 2 * (LEFT + 18);
+  doc.roundedRect(LEFT + 18, metaY, boxW, 120, 14).fill("#ffffff");
+  doc
+    .roundedRect(LEFT + 18, metaY, boxW, 120, 14)
+    .lineWidth(1)
+    .stroke(colors.border);
+
+  doc
+    .font(fonts.bold)
+    .fontSize(11)
+    .fillColor(colors.dark)
+    .text("RAPOR BİLGİLERİ", LEFT + 32, metaY + 14);
+
+  doc
+    .font(fonts.base)
+    .fontSize(10)
+    .fillColor(colors.text)
+    .text(`Rapor ID: #${reportId}`, LEFT + 32, metaY + 40)
+    .text(
+      `Oluşturulma: ${generatedAt.toLocaleString("tr-TR")}`,
+      LEFT + 32,
+      metaY + 56,
+    )
+    .text(`Kayıt Sayısı: ${sensorHistory.length}`, LEFT + 32, metaY + 72)
+    .text(`Sistem Sürümü: v2.1`, LEFT + 32, metaY + 88);
+
+  doc.restore();
+
+  // ---------- CONTENT PAGE ----------
+  doc.addPage();
+  y = TOP;
+
+  doc
+    .font(fonts.bold)
+    .fontSize(18)
+    .fillColor(colors.dark)
+    .text("Sistem Özeti", LEFT, y);
+  y += 28;
+
+  // Cards (2x2)
+  const cardW = (CONTENT_W - 16) / 2;
+  const cardH = 72;
+
+  ensureSpace(cardH * 2 + 12 + 16);
+
+  card(
+    LEFT,
+    y,
+    cardW,
+    cardH,
+    "Sıcaklık",
+    `${latest.temperature ?? "--"}°C`,
+    colors.accent,
+  );
+  card(
+    LEFT + cardW + 16,
+    y,
+    cardW,
+    cardH,
+    "Nem",
+    `${latest.humidity ?? "--"}%`,
+    colors.primary,
+  );
+  y += cardH + 12;
+  card(
+    LEFT,
+    y,
+    cardW,
+    cardH,
+    "Toprak Bağlamı",
+    `${latest.soil_context ?? "--"}`,
+    colors.secondary,
+  );
+  card(
+    LEFT + cardW + 16,
+    y,
+    cardW,
+    cardH,
+    "Sistem Durumu",
+    `${latest.system_status ?? "OK"}`,
+    colors.dark,
+  );
+  y += cardH + 18;
+
+  // Queue stats
+  section("Komut Kuyruğu Durumu");
+
+  const queueStats = {
+    toplam: commandQueue.length,
+    beklemede: commandQueue.filter((c) => c.status === "pending").length,
+    gonderilen: commandQueue.filter((c) => c.status === "sent").length,
+    onaylanan: commandQueue.filter((c) => c.status === "ack").length,
+  };
+
+  const stats = [
+    ["Toplam", queueStats.toplam],
+    ["Beklemede", queueStats.beklemede],
+    ["Gönderilen", queueStats.gonderilen],
+    ["Onaylanan", queueStats.onaylanan],
+  ];
+
+  const statW = (CONTENT_W - 12) / 4;
+  ensureSpace(60);
+
+  for (let i = 0; i < stats.length; i++) {
+    const x = LEFT + i * (statW + 4);
+    doc.save();
+    doc.roundedRect(x, y, statW, 54, 12).fill("#ffffff");
+    doc.roundedRect(x, y, statW, 54, 12).lineWidth(1).stroke(colors.border);
+
+    doc
+      .font(fonts.base)
+      .fontSize(9)
+      .fillColor(colors.lightText)
+      .text(stats[i][0], x + 10, y + 8, {
+        width: statW - 20,
+        lineBreak: false,
+        ellipsis: true,
+      });
+    doc
+      .font(fonts.bold)
+      .fontSize(18)
+      .fillColor(colors.text)
+      .text(String(stats[i][1]), x + 10, y + 24, {
+        width: statW - 20,
+        lineBreak: false,
+        ellipsis: true,
+      });
+    doc.restore();
+  }
+
+  y += 70;
+
+  doc
+    .font(fonts.base)
+    .fontSize(9)
+    .fillColor(colors.lightText)
+    .text("Son Komut ID:", LEFT, y);
+  doc
+    .font(fonts.bold)
+    .fontSize(11)
+    .fillColor(colors.primary)
+    .text(`#${commandCounter}`, LEFT + 92, y);
+  y += 30;
+
+  // Sensor table
+  section("Son Sensör Kayıtları");
+
+  const recentLogs = sensorHistory.slice(-30).reverse();
+  const headers = ["#", "Tarih/Saat", "Sıcaklık", "Nem", "Fan", "Durum"];
+  const colWidths = [
+    24,
+    150,
+    70,
+    55,
+    55,
+    CONTENT_W - (24 + 150 + 70 + 55 + 55),
+  ];
+
+  const rows = recentLogs.map((log, idx) => {
+    const f1 = log.f1 === 1 ? "A" : "K";
+    const f2 = log.f2 === 1 ? "A" : "K";
+    return [
+      idx + 1,
+      log.timestamp ?? "",
+      `${log.temperature ?? "--"}°C`,
+      `${log.humidity ?? "--"}%`,
+      `${f1}/${f2}`,
+      log.system_status ?? "OK",
+    ];
+  });
+
+  drawTable(headers, rows, colWidths);
+
+  // Web messages
+  if (Array.isArray(webMessages) && webMessages.length > 0) {
+    y += 10;
+    section("Son Web Mesajları");
+
+    setBody();
+    doc.fontSize(9);
+
+    for (const msg of webMessages) {
+      ensureSpace(18);
+      doc.save();
+      doc
+        .font(fonts.bold)
+        .fillColor(colors.primary)
+        .text(`[${msg.timestamp ?? "--"}]`, LEFT, y, {
+          width: 90,
+          lineBreak: false,
+          ellipsis: true,
+        });
+      doc
+        .font(fonts.base)
+        .fillColor(colors.text)
+        .text(`${msg.text ?? ""}`, LEFT + 92, y, {
+          width: CONTENT_W - 92,
+          lineBreak: false,
+          ellipsis: true,
+        });
+      doc.restore();
+      y += 18;
+    }
+  }
+
+  // Footer (all pages)
+  addFooterAllPages();
+
+  // Finalize
+  console.log(`[PDF] ✅ Rapor oluşturuldu: ${fileName} (Font: ${fonts.base})`);
+  doc.end();
+});

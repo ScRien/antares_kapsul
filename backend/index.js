@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const PDFDocument = require("pdfkit");
-const axios = require("axios"); // ✅ YENİ: ESP32 proxy için
+const axios = require("axios");
 
 const app = express();
 app.use(cors());
@@ -16,15 +16,15 @@ let commandQueue = [];
 let commandCounter = 0;
 
 // ============= v4: Canli Goruntusu =============
-let latestLiveFrame = null; // En son gelen JPEG buffer'i
-let frameTimestamp = null; // Çekim zamani
+let latestLiveFrame = null;
+let frameTimestamp = null;
 
 // ✅ v3: Web Mesaj Havuzu (Son 5 mesaj tutulur)
 let webMessages = [];
 const MAX_MESSAGES = 5;
-let lastNewMessage = null; // ESP32'nin almasi gereken yeni mesaj
+let lastNewMessage = null;
 
-// Backend state (Arduino ACK'dan güncellenir)
+// Backend state
 let hardwareState = {
   f1: 0,
   f2: 0,
@@ -359,7 +359,13 @@ app.get("/api/cmd", (req, res) => {
 
   if (msg) {
     const now = new Date();
-    const timeStr = now.toLocaleTimeString("tr-TR").split(" ")[0];
+    const timeStr = now.toLocaleTimeString
+      ? now.toLocaleTimeString("tr-TR").split(" ")[0]
+      : now.getHours() +
+        ":" +
+        String(now.getMinutes()).padStart(2, "0") +
+        ":" +
+        String(now.getSeconds()).padStart(2, "0");
 
     commandQueue.push({
       id: ++commandCounter,
@@ -509,7 +515,6 @@ app.get("/api/capture-live", (req, res) => {
 
 // ============= TEMIZLEME ENDPOINTS =============
 
-// Tüm komutları sil
 app.post("/api/clear/all-commands", (req, res) => {
   const deletedCount = commandQueue.length;
   commandQueue = [];
@@ -517,7 +522,6 @@ app.post("/api/clear/all-commands", (req, res) => {
   res.json({ success: true, deletedCount });
 });
 
-// Sadece PENDING komutları sil
 app.post("/api/clear/pending-commands", (req, res) => {
   const initialLength = commandQueue.length;
   commandQueue = commandQueue.filter((cmd) => cmd.status !== "pending");
@@ -526,7 +530,6 @@ app.post("/api/clear/pending-commands", (req, res) => {
   res.json({ success: true, deletedCount });
 });
 
-// Sadece SENT komutları sil
 app.post("/api/clear/sent-commands", (req, res) => {
   const initialLength = commandQueue.length;
   commandQueue = commandQueue.filter((cmd) => cmd.status !== "sent");
@@ -535,7 +538,6 @@ app.post("/api/clear/sent-commands", (req, res) => {
   res.json({ success: true, deletedCount });
 });
 
-// Sadece ACK'd komutları sil
 app.post("/api/clear/acked-commands", (req, res) => {
   const initialLength = commandQueue.length;
   commandQueue = commandQueue.filter((cmd) => cmd.status !== "ack");
@@ -544,7 +546,6 @@ app.post("/api/clear/acked-commands", (req, res) => {
   res.json({ success: true, deletedCount });
 });
 
-// Belirli bir komutu sil
 app.post("/api/delete-command", (req, res) => {
   const { commandId } = req.body;
   const initialLength = commandQueue.length;
@@ -556,7 +557,6 @@ app.post("/api/delete-command", (req, res) => {
   res.json({ success, deletedCount: success ? 1 : 0 });
 });
 
-// Mesajları sil
 app.post("/api/clear/messages", (req, res) => {
   const deletedCount = webMessages.length;
   webMessages = [];
@@ -565,7 +565,6 @@ app.post("/api/clear/messages", (req, res) => {
   res.json({ success: true, deletedCount });
 });
 
-// Sensör geçmişini sil
 app.post("/api/clear/history", (req, res) => {
   const deletedCount = sensorHistory.length;
   sensorHistory = [];
@@ -703,7 +702,9 @@ app.post(
   (req, res) => {
     try {
       latestLiveFrame = req.body;
-      frameTimestamp = new Date().toLocaleString("tr-TR");
+      frameTimestamp = new Date().toLocaleString
+        ? new Date().toLocaleString("tr-TR")
+        : new Date().toString();
       console.log(
         `✅ Frame backend'e alindi: ${latestLiveFrame.length} bytes @ ${frameTimestamp}`,
       );
@@ -731,14 +732,10 @@ app.get("/api/stream", (req, res) => {
   }
 });
 
-// ============= CANLΙ MOD YÖNETIMI (Frontend tarafından kontrol edilir) =============
-// ✅ Otomatik 15sn loop KALDIRILD - Frontend /api/live-mode-start ile kontrol eder
-// Manuel vs Otomatik mod karışmıyor
-
+// ============= CANLΙ MOD YÖNETIMI =============
 let liveModeActive = false;
 let liveModeInterval = null;
 
-// 🟢 Canlı modu başlat (5 dakika, 10sn aralığında çekme)
 app.post("/api/live-mode-start", (req, res) => {
   if (liveModeActive) {
     return res.json({
@@ -752,7 +749,6 @@ app.post("/api/live-mode-start", (req, res) => {
     "🟢 ===== CANLΙ MOD BAŞLADI ===== 5 dakika / 10sn aralığında otomatik çekme",
   );
 
-  // 10 saniyede bir otomatik çekme
   liveModeInterval = setInterval(() => {
     commandQueue.push({
       id: ++commandCounter,
@@ -765,9 +761,8 @@ app.post("/api/live-mode-start", (req, res) => {
     console.log(
       `⏰ [CANLΙ MOD] Kare #${commandCounter} sırada (${pending} pending)`,
     );
-  }, 10000); // 10 saniye
+  }, 10000);
 
-  // 5 dakika sonra otomatik durdur
   setTimeout(
     () => {
       clearInterval(liveModeInterval);
@@ -775,7 +770,7 @@ app.post("/api/live-mode-start", (req, res) => {
       console.log("🔴 ===== CANLΙ MOD BİTTİ ===== 5 dakika tamamlandı");
     },
     5 * 60 * 1000,
-  ); // 5 dakika = 300000ms
+  );
 
   res.json({
     success: true,
@@ -785,7 +780,6 @@ app.post("/api/live-mode-start", (req, res) => {
   });
 });
 
-// ⏹ Canlı modu durdur (manuel durdurma)
 app.post("/api/live-mode-stop", (req, res) => {
   if (!liveModeActive) {
     return res.json({
@@ -801,7 +795,6 @@ app.post("/api/live-mode-stop", (req, res) => {
   res.json({ success: true, message: "Canlı mod durduruldu" });
 });
 
-// 📊 Canlı mod durumunu kontrol et
 app.get("/api/live-mode-status", (req, res) => {
   const pending = commandQueue.filter((c) => c.status === "pending").length;
   const sent = commandQueue.filter((c) => c.status === "sent").length;
@@ -827,7 +820,9 @@ app.post("/api/log-summary", (req, res) => {
   if (f2 !== undefined) hardwareState.f2 = f2;
 
   const logEntry = {
-    timestamp: new Date().toLocaleString("tr-TR"),
+    timestamp: new Date().toLocaleString
+      ? new Date().toLocaleString("tr-TR")
+      : new Date().toString(),
     temperature: t,
     humidity: h,
     soil_context: s,
@@ -1397,30 +1392,30 @@ app.get("/api/generate-report", (req, res) => {
   console.log(`[PDF] ✅ Rapor oluşturuldu: ${fileName} (Font: ${fonts.base})`);
   doc.end();
 });
+// başlangıç: 860
 
 // ============= SERVER START =============
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(
-    `✅ Antares Backend v2.1 (360° ARCHIVE PROXY) aktif port: ${PORT}\n`,
+    `✅ Antares Backend v2.1 (CANLΙ MOD YÖNETIMI) aktif port: ${PORT}\n`,
   );
   console.log("🎯 OZELLIKLER:");
   console.log("✅ Command Queue (FIFO) - Her komut sirada tutuluyor");
   console.log("✅ ACK Pattern - Komutlar guvenli bir sekilde takip ediliyor");
   console.log("✅ Non-blocking Serial - ESP32 seri port kontrolu stabil");
+  console.log("✅ Canlı Mod Yönetimi - Frontend kontrollü (5 dakika)");
   console.log("✅ Keep-Alive Connection - TLS handshake minimized");
   console.log(
     "✅ Bidirectional State Sync - Arduino ACK'tan gercek durum guncelleniyor",
   );
   console.log("✅ 360° Archive Proxy - ESP32 dosya servisi ile entegre");
-  console.log("✅ PDF Report Generation - Sistem raporu olustur");
   console.log("✅ CLEANUP TOOLS - Komut, mesaj ve gecmis temizleme araclari");
   console.log("");
   console.log("📊 LATENCY BUDGET: ~2-3 saniye (toleranslı)");
   console.log("🔒 GÜVENILIRLIK: Komut kaybı riski %0");
   console.log("📸 360° ARŞIV: Dosya listesi ve görsel proxy aktif");
-  console.log("📄 RAPORLAR: PDF raporlar otomatik oluşturuluyor");
   console.log("🧹 TEMIZLEME: Komut, mesaj ve sensör geçmişi temizleme aktif");
   console.log("");
   console.log("http://localhost:3000");
