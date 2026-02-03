@@ -7,6 +7,110 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ============= AUTHENTICATION ENDPOINTS =============
+// Bu blokları index.js dosyasının başına ekle (app.use(cors()) sonrasına)
+
+app.post("/api/auth/login", (req, res) => {
+  const { password } = req.body;
+
+  // Sistem şifresi (güvenlik için env var olmalı ama şimdilik hardcoded)
+  const SYSTEM_PASSWORD = process.env.SYSTEM_PASSWORD || "antares2026";
+
+  if (password === SYSTEM_PASSWORD) {
+    const token = generateToken();
+    res.json({
+      success: true,
+      token: token,
+      user: { username: "Lab Admin", role: "system_admin" },
+    });
+  } else {
+    res.status(401).json({
+      success: false,
+      message: "Şifre yanlış",
+    });
+  }
+});
+
+app.post("/api/auth/verify", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Token yok" });
+  }
+
+  const token = authHeader.substring(7);
+  try {
+    // Basit token validation (üretilen token ile eşleş)
+    if (isValidToken(token)) {
+      res.json({
+        success: true,
+        user: { username: "Lab Admin", role: "system_admin" },
+      });
+    } else {
+      res.status(401).json({ message: "Invalid token" });
+    }
+  } catch (err) {
+    res.status(401).json({ message: "Token validation failed" });
+  }
+});
+
+app.post("/api/auth/refresh", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Token yok" });
+  }
+
+  const oldToken = authHeader.substring(7);
+  try {
+    if (isValidToken(oldToken)) {
+      const newToken = generateToken();
+      res.json({ success: true, token: newToken });
+    } else {
+      res.status(401).json({ message: "Invalid token" });
+    }
+  } catch (err) {
+    res.status(401).json({ message: "Refresh failed" });
+  }
+});
+
+// ============= TOKEN HELPER FONKSIYONLARI =============
+const validTokens = new Set(); // Memory'de aktif tokenlar tutuluyor
+
+function generateToken() {
+  const token =
+    "token_" + Math.random().toString(36).substring(2, 20) + Date.now();
+  validTokens.add(token);
+  return token;
+}
+
+function isValidToken(token) {
+  return validTokens.has(token);
+}
+
+// ============= MIDDLEWARE: Her endpoint'e token kontrolü ekle =============
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const token = authHeader.substring(7);
+  if (!isValidToken(token)) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+
+  next();
+}
+
+// Tüm /api/ endpointlerine token kontrolü ekle
+app.use("/api/cmd", authenticateToken);
+app.use("/api/data", authenticateToken);
+app.use("/api/stream", authenticateToken);
+app.use("/api/live-mode-start", authenticateToken);
+app.use("/api/live-mode-stop", authenticateToken);
+app.use("/api/live-mode-status", authenticateToken);
+app.use("/api/pending-cmd", authenticateToken);
+app.use("/api/archive/", authenticateToken);
+
 // ============= BELLEKTEKI VERİLER =============
 let sensorHistory = [];
 let targetClimate = { t: 22.0, h: 60.0 };

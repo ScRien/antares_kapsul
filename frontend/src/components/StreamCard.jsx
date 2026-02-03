@@ -16,6 +16,36 @@ export default function StreamCard({ token }) {
   });
   const [error, setError] = useState(null);
 
+  // ✅ FIX 1: Sayfa yüklemede canlı mod durumunu backend'den al
+  useEffect(() => {
+    if (!token) return;
+
+    const checkInitialLiveStatus = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/live-mode-status`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.active) {
+            setIsLiveMode(true);
+            // Tahmini kalan süre (maksimal 5 dakika)
+            setRemainingTime(300);
+            setQueueStats(data.queueStats);
+          }
+        }
+      } catch (err) {
+        console.error("❌ İlk canlı mod durumu kontrol hatası:", err);
+      }
+    };
+
+    checkInitialLiveStatus();
+  }, [token]);
+
   // ============= CANLI MOD ZAMANLAYICISI (5 dakika = 300 saniye) =============
   useEffect(() => {
     if (!isLiveMode) return;
@@ -23,7 +53,6 @@ export default function StreamCard({ token }) {
     const timer = setInterval(() => {
       setRemainingTime((prev) => {
         if (prev <= 1) {
-          // Mod otomatik biterse, backend'e durdur mesajı gönder
           handleStopLiveBackend();
           setIsLiveMode(false);
           return 0;
@@ -36,7 +65,6 @@ export default function StreamCard({ token }) {
   }, [isLiveMode]);
 
   // ============= DURUM KONTROL (5 saniyede bir) =============
-  // Backend'den canlı mod durumunu ve queue istatistiklerini kontrol et
   useEffect(() => {
     if (!isLiveMode || !token) return;
 
@@ -56,14 +84,13 @@ export default function StreamCard({ token }) {
         if (data.active) {
           setQueueStats(data.queueStats || queueStats);
         } else {
-          // Eğer backend'de mod inaktif ise, frontend'i de durdur
           setIsLiveMode(false);
           setRemainingTime(0);
         }
       } catch (err) {
         console.error("❌ Durum kontrol hatası:", err);
       }
-    }, 5000); // 5 saniye
+    }, 5000);
 
     return () => clearInterval(statusCheck);
   }, [isLiveMode, token]);
@@ -120,7 +147,7 @@ export default function StreamCard({ token }) {
 
       if (data.success) {
         setIsLiveMode(true);
-        setRemainingTime(300); // 5 dakika = 300 saniye
+        setRemainingTime(300);
         setQueueStats(
           data.queueStats || { total: 0, pending: 0, sent: 0, acked: 0 },
         );
@@ -140,7 +167,7 @@ export default function StreamCard({ token }) {
     }
   };
 
-  // ============= CANLI MODU DURDUR (Manual) =============
+  // ✅ FIX 2: Canlı modu durdurma fonksiyonu
   const handleStopLive = async () => {
     console.log("⏹ Canlı mod durdurulüyor...");
     await handleStopLiveBackend();
@@ -213,7 +240,7 @@ export default function StreamCard({ token }) {
         </div>
       )}
 
-      {/* VİDEO ÇERÇEVE */}
+      {/* ✅ FIX 3: IMG src'ye cache-buster timestamp ekle */}
       <div className="w-full h-[450px] bg-[#111] rounded-2xl overflow-hidden relative mb-3">
         <img
           src={`${API_BASE}/stream?t=${lastCapture.getTime()}`}

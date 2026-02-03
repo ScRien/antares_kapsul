@@ -27,11 +27,21 @@ export function useHardwareControl(onStatusChange) {
       onStatusChange(`⏳ ${type} komutu gönderiliyor...`);
 
       try {
+        // ✅ FIX: Query string'i doğru şekilde oluştur
+        const params = {};
+        if (type === "fan1") {
+          params.fan1 = newValue;
+        } else if (type === "fan2") {
+          params.fan2 = newValue;
+        }
+
         const response = await axios.get(`${API_BASE}/cmd`, {
-          params: { [type]: newValue },
+          params: params,
+          // ✅ ÖNEMLI: Interceptor token ekleyecek, başa Bearer yazma
         });
 
         console.log(`✅ ${type} başarıyla ${newValue} yapıldı.`);
+        console.log("Backend response:", response.data);
 
         // Backend state'ini al
         if (response.data.hardwareState) {
@@ -42,10 +52,11 @@ export function useHardwareControl(onStatusChange) {
           }));
         }
 
-        onStatusChange(`✅ ${type} komutu başarılı`);
+        onStatusChange(`✅ ${type} başarıyla ${newValue} yapıldı`);
         setTimeout(() => onStatusChange(""), 3000);
       } catch (err) {
         console.error("❌ Komut hatası:", err.message);
+        console.error("Full error:", err);
 
         // Rollback - hata durumunda eski değere dön
         onDataUpdate((prev) => ({
@@ -53,8 +64,9 @@ export function useHardwareControl(onStatusChange) {
           [type === "fan1" ? "f1" : "f2"]: oldValue,
         }));
 
-        const errorMsg = err.response?.data?.message || "Ağ bağlantısı hatası";
-        onStatusChange(`❌ ${type} komutu başarısız - ${errorMsg}`);
+        const errorMsg =
+          err.response?.data?.message || err.message || "Ağ bağlantısı hatası";
+        onStatusChange(`❌ ${type} başarısız - ${errorMsg}`);
         alert(`❌ Komut gönderilemedi!\n\n${errorMsg}`);
         setTimeout(() => onStatusChange(""), 5000);
       } finally {
