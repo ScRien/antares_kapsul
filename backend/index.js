@@ -123,7 +123,6 @@ app.get("/", (req, res) => {
   </head>
   <body class="p-6">
       <div class="max-w-6xl mx-auto">
-          <!-- HEADER -->
           <div class="mb-12">
               <div class="flex justify-between items-start mb-6">
                   <div>
@@ -137,7 +136,6 @@ app.get("/", (req, res) => {
               </div>
           </div>
 
-          <!-- QUICK STATS -->
           <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
               <div class="glass p-4 rounded-xl metric-card">
                   <p class="text-slate-400 text-xs uppercase tracking-widest font-bold">Sicaklik</p>
@@ -161,13 +159,10 @@ app.get("/", (req, res) => {
               </div>
           </div>
 
-          <!-- MAIN GRID -->
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               
-              <!-- LEFT COLUMN -->
               <div class="lg:col-span-2 space-y-6">
                   
-                  <!-- LIVE MODE STATUS -->
                   <div class="glass p-6 rounded-xl border border-cyan-400/20">
                       <div class="flex justify-between items-center mb-4">
                           <div class="flex items-center gap-3">
@@ -187,7 +182,6 @@ app.get("/", (req, res) => {
                       }
                   </div>
 
-                  <!-- COMMAND QUEUE -->
                   <div class="glass p-6 rounded-xl">
                       <div class="flex justify-between items-center mb-4">
                           <h2 class="text-xl font-bold">Son Komutlar</h2>
@@ -236,7 +230,6 @@ app.get("/", (req, res) => {
                       </div>
                   </div>
 
-                  <!-- QUEUE STATISTICS -->
                   <div class="glass p-6 rounded-xl">
                       <h3 class="text-lg font-bold mb-4">Komut Kuyrugu Istatistikleri</h3>
                       <table>
@@ -269,10 +262,8 @@ app.get("/", (req, res) => {
 
               </div>
 
-              <!-- RIGHT COLUMN -->
               <div class="space-y-6">
                   
-                  <!-- SYSTEM INFO -->
                   <div class="glass p-6 rounded-xl">
                       <h3 class="text-lg font-bold mb-4">Sistem Bilgisi</h3>
                       <div class="space-y-3 text-sm">
@@ -299,7 +290,6 @@ app.get("/", (req, res) => {
                       </div>
                   </div>
 
-                  <!-- API SUMMARY -->
                   <div class="glass p-6 rounded-xl">
                       <h3 class="text-lg font-bold mb-4">API Endpoint'leri</h3>
                       <div class="space-y-3 text-xs">
@@ -329,7 +319,6 @@ app.get("/", (req, res) => {
                       </p>
                   </div>
 
-                  <!-- QUICK ACTIONS -->
                   <div class="glass p-6 rounded-xl">
                       <h3 class="text-lg font-bold mb-4">Hizli Linkler</h3>
                       <div class="space-y-2">
@@ -349,7 +338,6 @@ app.get("/", (req, res) => {
 
           </div>
 
-          <!-- FOOTER -->
           <div class="glass p-4 rounded-xl text-center border-t border-slate-700">
               <p class="text-slate-400 text-sm">
                   ANTARES v2.1 • Modular Backend with Enhanced Status Dashboard
@@ -432,6 +420,17 @@ app.use("/api/cleanup", cleanupRoutes);
 const reportsRoutes = require("./routes/reports");
 app.use("/api/reports", authenticateToken, reportsRoutes);
 
+// ============= LEGACY SUPPORT (ACİL YAMA) =============
+// Bu kısım, Frontend'in ve ESP32'nin eski "/api/data" adresine
+// attığı isteklerin 404 dönmemesi için eklenmiştir.
+app.get("/api/data", (req, res) => {
+  // ESP32 genelde token göndermediği için burada auth kontrolü yapmıyoruz
+  res.json({
+    ...sensorData,
+    newMsg: global.webMessages.length > 0 ? global.webMessages[0] : null,
+  });
+});
+
 // ============= SERVER START =============
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -449,6 +448,7 @@ app.listen(PORT, () => {
   console.log(`   • /api/live-mode-* - Live Mode`);
   console.log(`   • /api/archive - Archive Management`);
   console.log(`   • /api/cleanup - Data Cleanup`);
-  console.log(`   • /api/reports - PDF Reports\n`);
+  console.log(`   • /api/reports - PDF Reports`);
+  console.log(`   • /api/data - Legacy Support (Fixed)\n`); // Loga da ekledim
   console.log(`📊 Status Page: http://localhost:${PORT}\n`);
 });
