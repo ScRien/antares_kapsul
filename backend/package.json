@@ -1,7 +1,7 @@
 {
   "name": "antares-backend",
-  "version": "2.1.0",
-  "description": "ANTARES Lab Interface Backend - Artifact Protection System",
+  "version": "3.0.0",
+  "description": "ANTARES Lab Interface Backend - Fixed Version",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
