@@ -16,11 +16,9 @@ import { useHardwareControl } from "./hooks/useHardwareControl";
 import { useAuth } from "./hooks/useAuth";
 
 const API_BASE = "https://antares-backend.onrender.com/api";
-// Local development icin:
-// const API_BASE = "http://localhost:3000/api";
 
 function App() {
-  // Authentication
+  // Authentication hook
   const {
     isLoggedIn,
     token,
@@ -34,11 +32,12 @@ function App() {
     logout,
   } = useAuth();
 
-  // Sensor data with token
+  // ✅ Token ile birlikte sensor data çağır
   const {
     data,
     lastDataUpdate,
     error: sensorError,
+    isHardwareOffline,
   } = useSensorData(token, isLoggedIn);
 
   // Local state for UI
@@ -46,7 +45,7 @@ function App() {
     data || {
       t: "--",
       h: "--",
-      s: "Baglantisiz",
+      s: "Bağlantısız",
       f1: 0,
       f2: 0,
     },
@@ -66,18 +65,18 @@ function App() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [scanImages, setScanImages] = useState([]);
 
-  // Hardware control
+  // Hardware control hook
   const { f1Loading, f2Loading, toggleHardware } =
     useHardwareControl(setCommandStatus);
 
-  // Update dataState when data changes
+  // Update dataState when data changes from hook
   useEffect(() => {
     if (data) {
       setDataState(data);
     }
   }, [data]);
 
-  // Axios interceptor - Add token to all requests
+  // ✅ Axios interceptor - Tüm isteklere token ekle
   useEffect(() => {
     const interceptor = axios.interceptors.request.use((config) => {
       if (token && isLoggedIn) {
@@ -104,7 +103,7 @@ function App() {
     setDataState({
       t: "--",
       h: "--",
-      s: "Baglantisiz",
+      s: "Bağlantısız",
       f1: 0,
       f2: 0,
     });
@@ -113,7 +112,7 @@ function App() {
   // === HARDWARE HANDLERS ===
   const handleToggleFan = async (type) => {
     if (!isLoggedIn || !token) {
-      alert("Oturum gecersiz! Lutfen tekrar giris yapin.");
+      alert("Oturum geçersiz! Lütfen tekrar giriş yapın.");
       handleLogout();
       return;
     }
@@ -128,7 +127,7 @@ function App() {
   // === LCD HANDLERS ===
   const handleSendLcdMsg = async () => {
     if (!isLoggedIn || !token) {
-      alert("Oturum gecersiz! Lutfen tekrar giris yapin.");
+      alert("Oturum geçersiz! Lütfen tekrar giriş yapın.");
       handleLogout();
       return;
     }
@@ -136,18 +135,18 @@ function App() {
     const trimmedMsg = lcdMsg.trim();
 
     if (!trimmedMsg) {
-      alert("Lutfen bir mesaj yazin!");
+      alert("Lütfen bir mesaj yazın!");
       return;
     }
 
     if (trimmedMsg.length > 20) {
       alert(
-        `LCD maksimum 20 karaktere kadar destekler!\n(Su an: ${trimmedMsg.length} karakter)`,
+        `⚠️ LCD maksimum 20 karaktere kadar destekler!\n(Şu an: ${trimmedMsg.length} karakter)`,
       );
       return;
     }
 
-    setCommandStatus("LCD mesaji gonderiliyor...");
+    setCommandStatus("⏳ LCD mesajı gönderiliyor...");
 
     try {
       await axios.get(`${API_BASE}/cmd`, {
@@ -155,16 +154,16 @@ function App() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      alert("LCD'ye iletildi!");
+      alert("✅ LCD'ye iletildi!");
       setLcdMsg("");
-      setCommandStatus("LCD mesaji gonderildi");
+      setCommandStatus("✅ LCD mesajı gönderildi");
       setTimeout(() => setCommandStatus(""), 3000);
     } catch (err) {
-      console.error("LCD msg hatasi:", err);
+      console.error("LCD msg hatası:", err);
       const errorMsg =
         err.response?.data?.message || err.message || "Bilinmeyen hata";
-      alert(`Mesaj gonderilemedi! ${errorMsg}`);
-      setCommandStatus("LCD mesaji gonderilemedi");
+      alert(`❌ Mesaj gönderilemedi! ${errorMsg}`);
+      setCommandStatus("❌ LCD mesajı gönderilemedi");
       setTimeout(() => setCommandStatus(""), 5000);
     }
   };
@@ -172,7 +171,7 @@ function App() {
   // === ARCHIVE HANDLERS ===
   const handleLoadArchiveFiles = async () => {
     if (!isLoggedIn || !token) {
-      alert("Oturum gecersiz! Lutfen tekrar giris yapin.");
+      alert("Oturum geçersiz! Lütfen tekrar giriş yapın.");
       handleLogout();
       return;
     }
@@ -186,13 +185,13 @@ function App() {
       if (res.data.files) {
         setArchiveFiles(res.data.files);
         console.log(
-          `${res.data.count || res.data.files.length} dosya yuklendi`,
+          `✅ ${res.data.count || res.data.files.length} dosya yüklendi`,
         );
       }
     } catch (err) {
-      console.error("Arsiv yukleme hatasi:", err.message);
-      const errorMsg = err.response?.data?.message || "Arsiv yuklenemedi";
-      alert(`${errorMsg}`);
+      console.error("❌ Arşiv yükleme hatası:", err.message);
+      const errorMsg = err.response?.data?.message || "Arşiv yüklenemedi";
+      alert(`⚠️ ${errorMsg}`);
     } finally {
       setArchiveLoading(false);
     }
@@ -205,7 +204,7 @@ function App() {
     );
 
     if (scanFilesArray.length === 0) {
-      alert("Bu taramaya ait goruntu bulunamadi!");
+      alert("Bu taramaya ait görüntü bulunamadı!");
       return;
     }
 
@@ -219,32 +218,32 @@ function App() {
     setCurrentImageIndex(0);
     setViewerActive(true);
 
-    console.log(`360 Oynatici acildi: ${scanFilesArray.length} goruntu`);
+    console.log(`🎬 360° Oynatıcı açıldı: ${scanFilesArray.length} görüntü`);
   };
 
   const handleTriggerScan = async () => {
     if (!isLoggedIn || !token) {
-      alert("Oturum gecersiz! Lutfen tekrar giris yapin.");
+      alert("Oturum geçersiz! Lütfen tekrar giriş yapın.");
       handleLogout();
       return;
     }
 
-    setCommandStatus("Tarama komutu gonderiliyor...");
+    setCommandStatus("⏳ Tarama komutu gönderiliyor...");
 
     try {
       await axios.get(`${API_BASE}/capture`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      alert("Tarama Komutu Gonderildi.");
-      setCommandStatus("360 Tarama baslatildi");
+      alert("✅ Tarama Komutu Gönderildi.");
+      setCommandStatus("✅ 360° Tarama başlatıldı");
       setTimeout(() => setCommandStatus(""), 3000);
     } catch (err) {
-      console.error("Capture hatasi:", err);
+      console.error("Capture hatası:", err);
       const errorMsg =
-        err.response?.data?.message || "Tarama komutu gonderilemedi";
-      alert(`${errorMsg}`);
-      setCommandStatus("Tarama baslatılamadi");
+        err.response?.data?.message || "Tarama komutu gönderilemedi";
+      alert(`❌ ${errorMsg}`);
+      setCommandStatus("❌ Tarama başlatılamadı");
       setTimeout(() => setCommandStatus(""), 5000);
     }
   };
@@ -262,7 +261,7 @@ function App() {
     );
   };
 
-  // Safe last update
+  // ✅ lastDataUpdate null check'i
   const safeLastUpdate =
     lastDataUpdate instanceof Date ? lastDataUpdate : new Date();
 
@@ -279,7 +278,7 @@ function App() {
         lockoutTime={lockoutTime}
       />
 
-      {/* 360 Viewer Modal */}
+      {/* 360° Viewer Modal */}
       {isLoggedIn && (
         <Viewer360Modal
           viewerActive={viewerActive}
@@ -293,7 +292,7 @@ function App() {
         />
       )}
 
-      {/* Main App */}
+      {/* Header */}
       {isLoggedIn && (
         <>
           <Header
@@ -302,19 +301,22 @@ function App() {
             onLogout={handleLogout}
           />
 
-          {/* Command Status */}
-          <StatusIndicator commandStatus={commandStatus} />
+          {/* Command Status Indicator */}
+          <StatusIndicator
+            commandStatus={commandStatus}
+            isHardwareOffline={isHardwareOffline}
+          />
 
           {/* Sensor Error Alert */}
           {sensorError && (
             <div className="fixed top-20 left-5 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-lg text-sm text-yellow-700 z-40">
-              {sensorError}
+              ⚠️ {sensorError}
             </div>
           )}
 
           {/* Main Content */}
           <main className="max-w-[1300px] mx-auto my-5 px-5 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 pb-10">
-            {/* Left Column */}
+            {/* Left Column - Visual */}
             <section className="space-y-6">
               <StreamCard token={token} />
 
@@ -327,7 +329,7 @@ function App() {
               />
             </section>
 
-            {/* Right Column */}
+            {/* Right Column - Controls */}
             <section className="space-y-6">
               <TelemetryCard data={dataState} />
 
