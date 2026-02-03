@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 
 const API_BASE = "https://antares-backend.onrender.com/api";
 
-export default function StreamCard() {
+export default function StreamCard({ token }) {
   const [frameTime, setFrameTime] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastCapture, setLastCapture] = useState(new Date());
@@ -14,8 +14,9 @@ export default function StreamCard() {
     sent: 0,
     acked: 0,
   });
+  const [error, setError] = useState(null);
 
-  // ============= CANLΙ MOD ZAMANLAYICISI (5 dakika = 300 saniye) =============
+  // ============= CANLI MOD ZAMANLAYICISI (5 dakika = 300 saniye) =============
   useEffect(() => {
     if (!isLiveMode) return;
 
@@ -37,15 +38,23 @@ export default function StreamCard() {
   // ============= DURUM KONTROL (5 saniyede bir) =============
   // Backend'den canlı mod durumunu ve queue istatistiklerini kontrol et
   useEffect(() => {
-    if (!isLiveMode) return;
+    if (!isLiveMode || !token) return;
 
     const statusCheck = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE}/live-mode-status`);
-        const data = await res.json();
+        const response = await fetch(`${API_BASE}/live-mode-status`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!response.ok) throw new Error("Durum kontrol başarısız");
+
+        const data = await response.json();
 
         if (data.active) {
-          setQueueStats(data.queueStats);
+          setQueueStats(data.queueStats || queueStats);
         } else {
           // Eğer backend'de mod inaktif ise, frontend'i de durdur
           setIsLiveMode(false);
@@ -57,83 +66,114 @@ export default function StreamCard() {
     }, 5000); // 5 saniye
 
     return () => clearInterval(statusCheck);
-  }, [isLiveMode]);
+  }, [isLiveMode, token]);
 
   // ============= METADATA GÜNCELLEME =============
   useEffect(() => {
+    if (!token) return;
+
     const fetchMetadata = async () => {
       try {
-        const res = await fetch(`${API_BASE}/data`);
-        const data = await res.json();
+        const response = await fetch(`${API_BASE}/data`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!response.ok) throw new Error("Metadata alınamadı");
+
+        const data = await response.json();
         if (data.frameTimestamp) {
           setFrameTime(data.frameTimestamp);
+          setError(null);
         }
       } catch (err) {
         console.error("❌ Frame metadata hatası:", err);
+        setError("Metadata alınamadı");
       }
     };
 
     fetchMetadata();
-  }, [lastCapture]);
+  }, [lastCapture, token]);
 
-  // ============= CANLΙ MODU BAŞLAT =============
+  // ============= CANLI MODU BASLAT =============
   const handleStartLive = async () => {
     setLoading(true);
+    setError(null);
     console.log("🟢 Canlı mod başlatılıyor...");
 
     try {
-      const res = await fetch(`${API_BASE}/live-mode-start`, {
+      const response = await fetch(`${API_BASE}/live-mode-start`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
 
-      const data = await res.json();
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
 
       if (data.success) {
         setIsLiveMode(true);
         setRemainingTime(300); // 5 dakika = 300 saniye
-        setQueueStats({ total: 0, pending: 0, sent: 0, acked: 0 });
+        setQueueStats(
+          data.queueStats || { total: 0, pending: 0, sent: 0, acked: 0 },
+        );
         console.log("✅ Canlı mod başladı! 5 dakika (≈30 frame)");
       } else {
-        console.error("❌ Canlı mod başlatılamadı:", data.message);
-        alert("Canlı mod başlatılamadı: " + data.message);
+        const errorMsg = data.message || "Canlı mod başlatılamadı";
+        console.error("❌ Canlı mod başlatılamadı:", errorMsg);
+        setError(errorMsg);
+        alert("⚠️ Canlı mod başlatılamadı: " + errorMsg);
       }
     } catch (err) {
-      console.error("❌ Hata:", err);
-      alert("Bağlantı hatası!");
+      console.error("❌ Hata:", err.message);
+      setError(err.message);
+      alert("❌ Bağlantı hatası! " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // ============= CANLΙ MODU DURDUR (Manual) =============
+  // ============= CANLI MODU DURDUR (Manual) =============
   const handleStopLive = async () => {
     console.log("⏹ Canlı mod durdurulüyor...");
     await handleStopLiveBackend();
     setIsLiveMode(false);
     setRemainingTime(0);
+    setError(null);
   };
 
-  // ============= BACKEND'E DURDUR GÖNDERİ =============
+  // ============= BACKEND'E DURDUR GÖNDERDI =============
   const handleStopLiveBackend = async () => {
     try {
-      const res = await fetch(`${API_BASE}/live-mode-stop`, {
+      const response = await fetch(`${API_BASE}/live-mode-stop`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
 
-      const data = await res.json();
+      if (!response.ok) throw new Error("Durdurma başarısız");
+
+      const data = await response.json();
       if (data.success) {
         console.log("✅ Canlı mod durdu");
       } else {
-        console.error("Backend'de durdurma hatası:", data.message);
+        console.error("❌ Backend'de durdurma hatası:", data.message);
       }
     } catch (err) {
       console.error("❌ Durdurma hatası:", err);
     }
   };
 
-  // ============= KALANLANTTI ZAMANI FORMATLA =============
+  // ============= KALAN ZAMAN FORMATLA =============
   const formatRemainingTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -150,7 +190,7 @@ export default function StreamCard() {
         <div className="flex items-center gap-2">
           {isLiveMode && (
             <span className="text-[0.65rem] text-[#ff6b6b] font-bold animate-pulse">
-              🔴 CANLΙ - {formatRemainingTime(remainingTime)}
+              🔴 CANLI - {formatRemainingTime(remainingTime)}
             </span>
           )}
           {frameTime && !isLiveMode && (
@@ -166,19 +206,32 @@ export default function StreamCard() {
         </div>
       </div>
 
+      {/* HATA MESAJI */}
+      {error && (
+        <div className="mb-3 p-2 bg-red-50 border-l-2 border-red-400 rounded text-xs text-red-600">
+          ❌ {error}
+        </div>
+      )}
+
       {/* VİDEO ÇERÇEVE */}
       <div className="w-full h-[450px] bg-[#111] rounded-2xl overflow-hidden relative mb-3">
         <img
           src={`${API_BASE}/stream?t=${lastCapture.getTime()}`}
           alt="Live Feed"
           className="w-full h-full object-contain"
-          onLoad={() => console.log("✅ Frame ekrana yüklendi")}
-          onError={() => console.error("❌ Frame yükleme hatası")}
+          onLoad={() => {
+            console.log("✅ Frame ekrana yüklendi");
+            setLastCapture(new Date());
+          }}
+          onError={() => {
+            console.error("❌ Frame yükleme hatası");
+            setError("Frame yüklenemedi");
+          }}
         />
 
         {/* DURUM GÖSTERGESİ */}
         <div className="absolute top-2 right-2 bg-[#00d2ff] text-white text-[10px] px-2 py-1 rounded font-bold">
-          {loading ? "⏳ Çekiliyor..." : isLiveMode ? "CANLΙ 🔴" : "Hazır 🟢"}
+          {loading ? "⏳ Çekiliyor..." : isLiveMode ? "CANLI 🔴" : "Hazır 🟢"}
         </div>
 
         {/* QUEUE SAYACI (Canlı mod aktifse) */}

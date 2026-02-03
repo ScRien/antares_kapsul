@@ -17,7 +17,7 @@ export function useHardwareControl(onStatusChange) {
       if (type === "fan1") setF1Loading(true);
       else setF2Loading(true);
 
-      // İyimser güncelleme
+      // Iyimser güncelleme (optimistic update)
       const oldValue = currentValue;
       onDataUpdate((prev) => ({
         ...prev,
@@ -45,16 +45,17 @@ export function useHardwareControl(onStatusChange) {
         onStatusChange(`✅ ${type} komutu başarılı`);
         setTimeout(() => onStatusChange(""), 3000);
       } catch (err) {
-        console.error("Komut hatası:", err);
+        console.error("❌ Komut hatası:", err.message);
 
-        // Rollback
+        // Rollback - hata durumunda eski değere dön
         onDataUpdate((prev) => ({
           ...prev,
           [type === "fan1" ? "f1" : "f2"]: oldValue,
         }));
 
-        onStatusChange(`❌ ${type} komutu başarısız - Ağ hatası`);
-        alert("Komut gönderilemedi! Ağ bağlantınızı kontrol edin.");
+        const errorMsg = err.response?.data?.message || "Ağ bağlantısı hatası";
+        onStatusChange(`❌ ${type} komutu başarısız - ${errorMsg}`);
+        alert(`❌ Komut gönderilemedi!\n\n${errorMsg}`);
         setTimeout(() => onStatusChange(""), 5000);
       } finally {
         if (type === "fan1") setF1Loading(false);

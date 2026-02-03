@@ -32,8 +32,14 @@ function App() {
     logout,
   } = useAuth();
 
-  // Sensor data - ✅ lastDataUpdate'i doğru al
-  const { data, lastDataUpdate } = useSensorData(token, isLoggedIn);
+  // ✅ Token ile birlikte sensor data çağır
+  const {
+    data,
+    lastDataUpdate,
+    error: sensorError,
+  } = useSensorData(token, isLoggedIn);
+
+  // Local state for UI
   const [dataState, setDataState] = useState(
     data || {
       t: "--",
@@ -63,13 +69,13 @@ function App() {
     useHardwareControl(setCommandStatus);
 
   // Update dataState when data changes from hook
-  React.useEffect(() => {
+  useEffect(() => {
     if (data) {
       setDataState(data);
     }
   }, [data]);
 
-  // Axios interceptor - Tüm isteklere token ekle
+  // ✅ Axios interceptor - Tüm isteklere token ekle
   useEffect(() => {
     const interceptor = axios.interceptors.request.use((config) => {
       if (token && isLoggedIn) {
@@ -93,6 +99,13 @@ function App() {
     setArchiveFiles([]);
     setSelectedScan(null);
     setViewerActive(false);
+    setDataState({
+      t: "--",
+      h: "--",
+      s: "Bağlantısız",
+      f1: 0,
+      f2: 0,
+    });
   };
 
   // === HARDWARE HANDLERS ===
@@ -111,41 +124,47 @@ function App() {
   };
 
   // === LCD HANDLERS ===
-  const handleSendLcdMsg = () => {
+  const handleSendLcdMsg = async () => {
     if (!isLoggedIn || !token) {
       alert("Oturum geçersiz! Lütfen tekrar giriş yapın.");
       handleLogout();
       return;
     }
 
-    if (!lcdMsg.trim()) {
+    const trimmedMsg = lcdMsg.trim();
+
+    if (!trimmedMsg) {
       alert("Lütfen bir mesaj yazın!");
       return;
     }
 
-    if (lcdMsg.length > 20) {
+    if (trimmedMsg.length > 20) {
       alert(
-        `❌ LCD maksimum 20 karaktere kadar destekler!\n(Şu an: ${lcdMsg.length} karakter)`,
+        `⚠️ LCD maksimum 20 karaktere kadar destekler!\n(Şu an: ${trimmedMsg.length} karakter)`,
       );
       return;
     }
 
     setCommandStatus("⏳ LCD mesajı gönderiliyor...");
 
-    axios
-      .get(`${API_BASE}/cmd`, { params: { msg: lcdMsg } })
-      .then(() => {
-        alert("✅ LCD'ye iletildi!");
-        setLcdMsg("");
-        setCommandStatus("✅ LCD mesajı gönderildi");
-        setTimeout(() => setCommandStatus(""), 3000);
-      })
-      .catch((err) => {
-        console.error("LCD msg hatası:", err);
-        alert("❌ Mesaj gönderilemedi!");
-        setCommandStatus("❌ LCD mesajı gönderilemedi");
-        setTimeout(() => setCommandStatus(""), 5000);
+    try {
+      await axios.get(`${API_BASE}/cmd`, {
+        params: { msg: trimmedMsg },
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      alert("✅ LCD'ye iletildi!");
+      setLcdMsg("");
+      setCommandStatus("✅ LCD mesajı gönderildi");
+      setTimeout(() => setCommandStatus(""), 3000);
+    } catch (err) {
+      console.error("LCD msg hatası:", err);
+      const errorMsg =
+        err.response?.data?.message || err.message || "Bilinmeyen hata";
+      alert(`❌ Mesaj gönderilemedi! ${errorMsg}`);
+      setCommandStatus("❌ LCD mesajı gönderilemedi");
+      setTimeout(() => setCommandStatus(""), 5000);
+    }
   };
 
   // === ARCHIVE HANDLERS ===
@@ -158,14 +177,20 @@ function App() {
 
     setArchiveLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/archive/list`);
+      const res = await axios.get(`${API_BASE}/archive/list`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
       if (res.data.files) {
         setArchiveFiles(res.data.files);
-        console.log(`✅ ${res.data.count} dosya yüklendi`);
+        console.log(
+          `✅ ${res.data.count || res.data.files.length} dosya yüklendi`,
+        );
       }
-    } catch (e) {
-      console.error("❌ Arşiv yükleme hatası:", e.message);
-      alert("Arşiv yüklenemedi!");
+    } catch (err) {
+      console.error("❌ Arşiv yükleme hatası:", err.message);
+      const errorMsg = err.response?.data?.message || "Arşiv yüklenemedi";
+      alert(`⚠️ ${errorMsg}`);
     } finally {
       setArchiveLoading(false);
     }
@@ -185,7 +210,8 @@ function App() {
     setScanImages(scanFilesArray);
     setSelectedScan({
       id: scanId,
-      timestamp: scanFilesArray[0].timestamp,
+      timestamp:
+        scanFilesArray[0].timestamp || new Date().toLocaleString("tr-TR"),
       count: scanFilesArray.length,
     });
     setCurrentImageIndex(0);
@@ -194,7 +220,7 @@ function App() {
     console.log(`🎬 360° Oynatıcı açıldı: ${scanFilesArray.length} görüntü`);
   };
 
-  const handleTriggerScan = () => {
+  const handleTriggerScan = async () => {
     if (!isLoggedIn || !token) {
       alert("Oturum geçersiz! Lütfen tekrar giriş yapın.");
       handleLogout();
@@ -203,19 +229,22 @@ function App() {
 
     setCommandStatus("⏳ Tarama komutu gönderiliyor...");
 
-    axios
-      .get(`${API_BASE}/capture`)
-      .then(() => {
-        alert("✅ Tarama Komutu Gönderildi.");
-        setCommandStatus("✅ 360° Tarama başlatıldı");
-        setTimeout(() => setCommandStatus(""), 3000);
-      })
-      .catch((err) => {
-        console.error("Capture hatası:", err);
-        alert("❌ Tarama komutu gönderilemedi!");
-        setCommandStatus("❌ Tarama başlatılamadı");
-        setTimeout(() => setCommandStatus(""), 5000);
+    try {
+      await axios.get(`${API_BASE}/capture`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      alert("✅ Tarama Komutu Gönderildi.");
+      setCommandStatus("✅ 360° Tarama başlatıldı");
+      setTimeout(() => setCommandStatus(""), 3000);
+    } catch (err) {
+      console.error("Capture hatası:", err);
+      const errorMsg =
+        err.response?.data?.message || "Tarama komutu gönderilemedi";
+      alert(`❌ ${errorMsg}`);
+      setCommandStatus("❌ Tarama başlatılamadı");
+      setTimeout(() => setCommandStatus(""), 5000);
+    }
   };
 
   // === IMAGE NAVIGATION ===
@@ -274,11 +303,18 @@ function App() {
           {/* Command Status Indicator */}
           <StatusIndicator commandStatus={commandStatus} />
 
+          {/* Sensor Error Alert */}
+          {sensorError && (
+            <div className="fixed top-20 left-5 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-lg text-sm text-yellow-700 z-40">
+              ⚠️ {sensorError}
+            </div>
+          )}
+
           {/* Main Content */}
           <main className="max-w-[1300px] mx-auto my-5 px-5 grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 pb-10">
             {/* Left Column - Visual */}
             <section className="space-y-6">
-              <StreamCard />
+              <StreamCard token={token} />
 
               <ArchiveCard
                 archiveFiles={archiveFiles}

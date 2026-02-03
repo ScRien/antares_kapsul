@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 const API_BASE = "https://antares-backend.onrender.com/api";
 const TOKEN_KEY = "antares_auth_token";
 const TOKEN_EXPIRY_KEY = "antares_token_expiry";
+const LOCKOUT_DURATION = 30000; // 30 saniye
 
 export function useAuth() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -14,7 +15,7 @@ export function useAuth() {
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(0);
 
-  // Sayfa yüklendığinde token kontrol et
+  // Sayfa yüklendiğinde token kontrol et
   useEffect(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
     const storedExpiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
@@ -51,11 +52,15 @@ export function useAuth() {
       if (response.ok) {
         const data = await response.json();
         setUser(data.user || { username: "Admin", role: "system_admin" });
-      } else {
+        console.log("✅ Token verified");
+      } else if (response.status === 401) {
+        // Token geçersiz, logout yap
         logout();
+        setError("Token geçersiz. Lütfen tekrar giriş yapın.");
       }
     } catch (err) {
-      console.error("Token verification failed:", err);
+      console.error("❌ Token verification failed:", err);
+      // Network hatası - token'ı saklı tut, retry'ya izin ver
     }
   }, []);
 
@@ -71,40 +76,54 @@ export function useAuth() {
         return false;
       }
 
+      if (!password || password.trim() === "") {
+        setError("Lütfen şifre girin!");
+        return false;
+      }
+
       setIsLoading(true);
       setError(null);
 
       try {
-        // Mock API çağrısı (backend hazırlanırken)
-        // Gerçek backend'de: POST /api/auth/login
-        const response = await mockAuthAPI(password);
+        // Backend'e login isteği gönder
+        const response = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ password: password.trim() }),
+        });
 
-        if (response.success) {
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Başarılı login
           const expiryTime = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 saat
 
           // Token'ı sakla
-          localStorage.setItem(TOKEN_KEY, response.token);
+          localStorage.setItem(TOKEN_KEY, data.token);
           localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toISOString());
 
           // State'i güncelle
-          setToken(response.token);
+          setToken(data.token);
           setIsLoggedIn(true);
-          setUser(response.user);
+          setUser(data.user || { username: "Lab Admin", role: "system_admin" });
           setAttemptCount(0);
           setIsLockedOut(false);
           setError(null);
 
+          console.log("✅ Başarıyla giriş yapıldı");
           return true;
         } else {
           // Yanlış şifre
           const newAttempts = attemptCount + 1;
           setAttemptCount(newAttempts);
-          setError(response.message || "Şifre yanlış!");
+          setError(data.message || "Şifre yanlış!");
 
           // 3 yanlış denemeden sonra lockout
           if (newAttempts >= 3) {
             setIsLockedOut(true);
-            setLockoutTime(30000); // 30 saniye lockout
+            setLockoutTime(LOCKOUT_DURATION);
 
             // Lockout timer başlat
             const timer = setInterval(() => {
@@ -120,11 +139,32 @@ export function useAuth() {
             }, 1000);
           }
 
+          console.log(`❌ Login başarısız. Deneme: ${newAttempts}/3`);
           return false;
         }
       } catch (err) {
+        console.error("❌ Login error:", err);
+
+        // Fallback: Mock auth (backend hazırlanmadıysa)
+        if (password === "antares2026") {
+          const expiryTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          const mockToken = generateMockToken();
+
+          localStorage.setItem(TOKEN_KEY, mockToken);
+          localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toISOString());
+
+          setToken(mockToken);
+          setIsLoggedIn(true);
+          setUser({ username: "Lab Admin", role: "system_admin" });
+          setAttemptCount(0);
+          setIsLockedOut(false);
+          setError(null);
+
+          console.log("✅ Mock auth ile giriş yapıldı");
+          return true;
+        }
+
         setError("Bağlantı hatası. Lütfen daha sonra tekrar deneyin.");
-        console.error("Login error:", err);
         return false;
       } finally {
         setIsLoading(false);
@@ -143,6 +183,7 @@ export function useAuth() {
     setError(null);
     setAttemptCount(0);
     setIsLockedOut(false);
+    console.log("✅ Çıkış yapıldı");
   }, []);
 
   // Token refresh (opsiyonel, token süresi dolmakta ise)
@@ -166,13 +207,14 @@ export function useAuth() {
         localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toISOString());
         setToken(data.token);
 
+        console.log("✅ Token refreshed");
         return true;
-      } else {
+      } else if (response.status === 401) {
         logout();
         return false;
       }
     } catch (err) {
-      console.error("Token refresh failed:", err);
+      console.error("❌ Token refresh failed:", err);
       return false;
     }
   }, [token, logout]);
@@ -190,30 +232,6 @@ export function useAuth() {
     logout,
     refreshToken,
   };
-}
-
-// Mock Authentication API (Backend hazırlanırken)
-async function mockAuthAPI(password) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      if (password === "antares2026") {
-        resolve({
-          success: true,
-          token: generateMockToken(),
-          user: {
-            username: "Lab Admin",
-            role: "system_admin",
-            email: "admin@antares-lab.io",
-          },
-        });
-      } else {
-        resolve({
-          success: false,
-          message: "Şifre geçersiz! Sistem yöneticisine başvurunuz.",
-        });
-      }
-    }, 800); // Gerçekçi ağ gecikmesi
-  });
 }
 
 // Mock JWT token üretme (gerçek JWT ile değiştirilecek)
