@@ -32,9 +32,17 @@ function App() {
     logout,
   } = useAuth();
 
-  // Sensor data
+  // Sensor data - ✅ lastDataUpdate'i doğru al
   const { data, lastDataUpdate } = useSensorData(token, isLoggedIn);
-  const [dataState, setDataState] = useState(data);
+  const [dataState, setDataState] = useState(
+    data || {
+      t: "--",
+      h: "--",
+      s: "Bağlantısız",
+      f1: 0,
+      f2: 0,
+    },
+  );
 
   // Command feedback
   const [commandStatus, setCommandStatus] = useState("");
@@ -56,7 +64,9 @@ function App() {
 
   // Update dataState when data changes from hook
   React.useEffect(() => {
-    setDataState(data);
+    if (data) {
+      setDataState(data);
+    }
   }, [data]);
 
   // Axios interceptor - Tüm isteklere token ekle
@@ -221,6 +231,10 @@ function App() {
     );
   };
 
+  // ✅ lastDataUpdate null check'i
+  const safeLastUpdate =
+    lastDataUpdate instanceof Date ? lastDataUpdate : new Date();
+
   return (
     <div className="min-h-screen bg-[#f4f7f6] font-sans text-[#2d3436]">
       {/* Login Overlay */}
@@ -252,7 +266,7 @@ function App() {
       {isLoggedIn && (
         <>
           <Header
-            lastDataUpdate={lastDataUpdate}
+            lastDataUpdate={safeLastUpdate}
             user={user}
             onLogout={handleLogout}
           />

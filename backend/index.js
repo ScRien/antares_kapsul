@@ -928,7 +928,7 @@ app.get("/api/generate-report", (req, res) => {
 
   // ---------- Fonts (Türkçe için garanti) ----------
   // assets/fonts içine NotoSans-Regular.ttf ve NotoSans-Bold.ttf koymalısın
-  const fontDir = path.join(__dirname, "assets", "fonts");
+  const fontDir = path.join(__dirname, "fonts");
 
   const families = [
     { regular: "NotoSans-Regular.ttf", bold: "NotoSans-Bold.ttf" },

@@ -3,9 +3,19 @@ import { useState, useEffect } from "react";
 const API_BASE = "https://antares-backend.onrender.com/api";
 
 export const useSensorData = () => {
-  const [sensorData, setSensorData] = useState(null);
+  // ✅ İlk değerleri tanımla - null olmasın!
+  const [sensorData, setSensorData] = useState({
+    t: "--",
+    h: "--",
+    s: "Bağlantısız",
+    f1: 0,
+    f2: 0,
+    frameTimestamp: new Date().toLocaleTimeString("tr-TR"),
+  });
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
   const [liveModeStatus, setLiveModeStatus] = useState({
     active: false,
     queueStats: { total: 0, pending: 0, sent: 0, acked: 0 },
@@ -18,10 +28,19 @@ export const useSensorData = () => {
         const res = await fetch(`${API_BASE}/data`);
         const data = await res.json();
         setSensorData(data);
+        setLastDataUpdate(new Date());
         setError(null);
       } catch (err) {
         setError("Sensör verisi alınamadı: " + err.message);
         console.error("❌ Sensör hata:", err);
+        // ✅ Hata durumunda da fallback veri koy
+        setSensorData({
+          t: "--",
+          h: "--",
+          s: "Bağlantısız",
+          f1: 0,
+          f2: 0,
+        });
       } finally {
         setLoading(false);
       }
@@ -49,7 +68,13 @@ export const useSensorData = () => {
     return () => clearInterval(interval);
   }, []);
 
-  return { sensorData, loading, error, liveModeStatus };
+  return {
+    data: sensorData,
+    loading,
+    error,
+    lastDataUpdate,
+    liveModeStatus,
+  };
 };
 
 // ============= CANLΙ MOD KONTROL FONKSİYONLARI =============
