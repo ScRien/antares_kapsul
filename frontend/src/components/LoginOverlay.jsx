@@ -13,7 +13,7 @@ export default function LoginOverlay({
 
   const handleLogin = async () => {
     if (passInput.trim() === "") {
-      alert("Lütfen şifre girin!");
+      alert("Lutfen sifre girin!");
       return;
     }
 
@@ -29,7 +29,6 @@ export default function LoginOverlay({
     }
   };
 
-  // Lockout zamanını formatla
   const formatLockoutTime = () => {
     const seconds = Math.ceil(lockoutTime / 1000);
     return `${seconds}s`;
@@ -49,7 +48,7 @@ export default function LoginOverlay({
         <div className="absolute -bottom-8 left-20 w-72 h-72 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
       </div>
 
-      {/* Giriş formu */}
+      {/* Login formu */}
       <div className="relative text-center p-10 max-w-[380px] w-[90%] bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/30">
         {/* Logo */}
         <div className="mb-6">
@@ -61,13 +60,13 @@ export default function LoginOverlay({
           </div>
         </div>
 
-        {/* Başlık */}
+        {/* Baslik */}
         <p className="mb-2 text-lg font-semibold text-gray-800">
           Lab Interface v2.1
         </p>
         <p className="mb-6 text-sm text-gray-500">Artifact Protection System</p>
 
-        {/* Hata mesajı */}
+        {/* Hata mesaji */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 rounded-lg">
             <p className="text-sm font-medium text-red-800">{error}</p>
@@ -83,7 +82,7 @@ export default function LoginOverlay({
         {isLockedOut && (
           <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
             <p className="text-sm font-semibold text-yellow-800">
-              ⏳ Çok fazla yanlış deneme
+              Cok fazla yanlis deneme
             </p>
             <p className="text-xs text-yellow-600 mt-1">
               {formatLockoutTime()} sonra tekrar deneyin
@@ -91,10 +90,10 @@ export default function LoginOverlay({
           </div>
         )}
 
-        {/* Şifre input */}
+        {/* Sifre input */}
         <input
           type="password"
-          placeholder="Sistem Şifresi"
+          placeholder="Sistem Sifresi"
           className={`w-full px-4 py-3 border-2 rounded-xl mb-4 outline-none transition-all font-medium ${
             isLockedOut
               ? "border-red-300 bg-red-50 text-gray-400 cursor-not-allowed"
@@ -109,7 +108,7 @@ export default function LoginOverlay({
           autoFocus
         />
 
-        {/* Giriş butonu */}
+        {/* Giris butonu */}
         <button
           onClick={handleLogin}
           disabled={isLoading || isLockedOut}
@@ -126,24 +125,24 @@ export default function LoginOverlay({
           ) : isLockedOut ? (
             <span>{formatLockoutTime()} Bekle</span>
           ) : (
-            "Giriş Yap"
+            "Giris Yap"
           )}
         </button>
 
-        {/* İnfo notu */}
+        {/* Info notu */}
         <div className="mt-6 p-3 bg-blue-50 rounded-lg border border-blue-100">
           <p className="text-xs text-gray-600">
-            <span className="font-semibold">🔐 Sistem Şifresi:</span>
+            <span className="font-semibold">Sistem Sifresi:</span>
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            Sistem yöneticisinden şifreyi alınız.
+            Sistem yoneticisinden sifrey alinin.
           </p>
         </div>
 
-        {/* Kullanıcı bilgisi */}
+        {/* Kullanici bilgisi */}
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-xs text-gray-500">
-            Sistem: <span className="font-semibold text-cyan-600">● Aktif</span>
+            Sistem: <span className="font-semibold text-cyan-600">Aktif</span>
           </p>
           <p className="text-xs text-gray-400 mt-1">
             {new Date().toLocaleTimeString("tr-TR")}

@@ -11,22 +11,23 @@ export default function ArchiveCard({
     <div className="bg-white p-5 rounded-[20px] shadow-sm">
       <div className="flex justify-between items-center mb-4">
         <span className="text-[0.7rem] font-black text-[#aaa] uppercase tracking-[2px] border-b border-[#f0f0f0] pb-2 block">
-          360° Tarama Arşivi
+          360 Tarama Arsivi
         </span>
         <button
           onClick={onLoadArchive}
           disabled={archiveLoading}
           className="text-[0.7rem] font-bold text-[#00d2ff] hover:text-[#0bb9d3] disabled:opacity-50"
         >
-          {archiveLoading ? "⏳ Yükleniyor..." : "🔄 Yenile"}
+          {archiveLoading ? "Yukleniyor..." : "Yenile"}
         </button>
       </div>
 
       {archiveFiles.length === 0 ? (
         <div className="text-center py-8 text-slate-400">
-          <p>Henüz tarama arşivi yok</p>
+          <p>Henuz tarama arsivi yok</p>
           <p className="text-xs mt-2">
-            Tarama başlatıp arşivi yükledikten sonra görseller burada görünecek
+            Tarama baslat ve arsivi yukledikten sonra goruntular burada
+            gorunecek
           </p>
         </div>
       ) : (
@@ -53,7 +54,7 @@ export default function ArchiveCard({
         onClick={onTriggerScan}
         className="w-full mt-2 bg-[#10ac84] text-white p-4 rounded-xl font-bold hover:brightness-110 active:scale-95 transition-all uppercase text-sm tracking-widest"
       >
-        Yeni 360° Tarama Başlat
+        Yeni 360 Tarama Baslat
       </button>
     </div>
   );

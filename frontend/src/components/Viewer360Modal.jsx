@@ -1,6 +1,7 @@
 import React from "react";
 
 const API_BASE = "https://antares-backend.onrender.com/api";
+// const API_BASE = "http://localhost:3000/api"; // Local dev
 
 export default function Viewer360Modal({
   viewerActive,
@@ -16,14 +17,14 @@ export default function Viewer360Modal({
 
   return (
     <div className="fixed inset-0 bg-black/90 z-[10000] flex flex-col items-center justify-center p-4">
-      {/* Başlık */}
+      {/* BASLIK */}
       <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-6 text-white">
         <div className="flex justify-between items-start">
           <div>
-            <h3 className="text-2xl font-bold">360° Tarama Görüntüleyicisi</h3>
+            <h3 className="text-2xl font-bold">360 Tarama Goruntuleycisi</h3>
             <p className="text-sm text-gray-300 mt-1">
               Tarih: {selectedScan.timestamp} | Toplam: {selectedScan.count}{" "}
-              görüntü
+              goruntu
             </p>
           </div>
           <button
@@ -35,7 +36,7 @@ export default function Viewer360Modal({
         </div>
       </div>
 
-      {/* Ana görüntü */}
+      {/* ANA GORUNTU */}
       <div className="relative w-full h-full flex items-center justify-center">
         {scanImages.length > 0 && (
           <img
@@ -43,23 +44,23 @@ export default function Viewer360Modal({
             src={`${API_BASE}/archive/file?name=${encodeURIComponent(
               scanImages[currentImageIndex].name,
             )}`}
-            alt={`Görüntü ${currentImageIndex + 1}`}
+            alt={`Goruntu ${currentImageIndex + 1}`}
             className="max-w-[90%] max-h-[85%] object-contain"
           />
         )}
       </div>
 
-      {/* Alt kontroller */}
+      {/* ALT KONTROLLER */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-6">
         <div className="flex items-center justify-center gap-8 mb-4">
           <button
             onClick={onPrevImage}
             className="bg-[#10ac84] hover:bg-[#0e8b6b] text-white p-4 rounded-full transition-all active:scale-95"
           >
-            ◀ Önceki
+            Onceki
           </button>
 
-          {/* Slider */}
+          {/* SLIDER */}
           <div className="flex-1 flex items-center gap-4">
             <input
               type="range"
@@ -78,16 +79,15 @@ export default function Viewer360Modal({
             onClick={onNextImage}
             className="bg-[#10ac84] hover:bg-[#0e8b6b] text-white p-4 rounded-full transition-all active:scale-95"
           >
-            Sonraki ▶
+            Sonraki
           </button>
         </div>
 
-        {/* Bilgi */}
+        {/* BILGI */}
         <div className="text-center text-gray-300 text-xs">
           <p>Dosya: {scanImages[currentImageIndex]?.name}</p>
           <p>
-            Boyut: {(scanImages[currentImageIndex]?.size / 1024).toFixed(1)}
-            KB
+            Boyut: {(scanImages[currentImageIndex]?.size / 1024).toFixed(1)}KB
           </p>
         </div>
       </div>

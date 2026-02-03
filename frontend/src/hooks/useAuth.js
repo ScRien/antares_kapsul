@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 
 const API_BASE = "https://antares-backend.onrender.com/api";
+// const API_BASE = "http://localhost:3000/api"; // Local dev
+
 const TOKEN_KEY = "antares_auth_token";
 const TOKEN_EXPIRY_KEY = "antares_token_expiry";
 const LOCKOUT_DURATION = 30000; // 30 saniye
@@ -15,7 +17,7 @@ export function useAuth() {
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(0);
 
-  // Sayfa yüklendiğinde token kontrol et
+  // Token kontrolu (sayfa yuklemede)
   useEffect(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
     const storedExpiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
@@ -25,20 +27,18 @@ export function useAuth() {
       const currentTime = new Date().getTime();
 
       if (currentTime < expiryTime) {
-        // Token hala geçerli
         setToken(storedToken);
         setIsLoggedIn(true);
         verifyToken(storedToken);
       } else {
-        // Token süresi dolmuş
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(TOKEN_EXPIRY_KEY);
-        setError("Oturum süresi doldu. Lütfen tekrar giriş yapın.");
+        setError("Oturum suresi doldu. Lutfen tekrar giris yapin.");
       }
     }
   }, []);
 
-  // Token doğrulama
+  // Token dogrulama
   const verifyToken = useCallback(async (authToken) => {
     try {
       const response = await fetch(`${API_BASE}/auth/verify`, {
@@ -51,33 +51,31 @@ export function useAuth() {
 
       if (response.ok) {
         const data = await response.json();
-        setUser(data.user || { username: "Admin", role: "system_admin" });
-        console.log("✅ Token verified");
-      } else if (response.status === 401) {
-        // Token geçersiz, logout yap
+        setUser(data.user || { username: "Lab Admin", role: "system_admin" });
+        console.log("Token verified");
+      } else {
         logout();
-        setError("Token geçersiz. Lütfen tekrar giriş yapın.");
+        setError("Token gecersiz.");
       }
     } catch (err) {
-      console.error("❌ Token verification failed:", err);
-      // Network hatası - token'ı saklı tut, retry'ya izin ver
+      console.error("Token dogrulama basarisiz:", err);
     }
   }, []);
 
-  // Login fonksiyonu
+  // Login
   const login = useCallback(
     async (password) => {
-      // Lockout kontrolü
+      // Lockout kontrolu
       if (isLockedOut && lockoutTime > 0) {
         const remainingTime = Math.ceil(lockoutTime / 1000);
         setError(
-          `Çok fazla yanlış deneme. ${remainingTime} saniye sonra tekrar deneyin.`,
+          `Cok fazla yanlis deneme. ${remainingTime} saniye sonra tekrar deneyin.`,
         );
         return false;
       }
 
       if (!password || password.trim() === "") {
-        setError("Lütfen şifre girin!");
+        setError("Lutfen sifre girin!");
         return false;
       }
 
@@ -85,7 +83,6 @@ export function useAuth() {
       setError(null);
 
       try {
-        // Backend'e login isteği gönder
         const response = await fetch(`${API_BASE}/auth/login`, {
           method: "POST",
           headers: {
@@ -97,14 +94,11 @@ export function useAuth() {
         const data = await response.json();
 
         if (response.ok && data.success) {
-          // Başarılı login
-          const expiryTime = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 saat
+          const expiryTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-          // Token'ı sakla
           localStorage.setItem(TOKEN_KEY, data.token);
           localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toISOString());
 
-          // State'i güncelle
           setToken(data.token);
           setIsLoggedIn(true);
           setUser(data.user || { username: "Lab Admin", role: "system_admin" });
@@ -112,20 +106,18 @@ export function useAuth() {
           setIsLockedOut(false);
           setError(null);
 
-          console.log("✅ Başarıyla giriş yapıldı");
+          console.log("Basarili giris");
           return true;
         } else {
-          // Yanlış şifre
+          // Yanlis sifre
           const newAttempts = attemptCount + 1;
           setAttemptCount(newAttempts);
-          setError(data.message || "Şifre yanlış!");
+          setError(data.message || "Sifre yanlis!");
 
-          // 3 yanlış denemeden sonra lockout
           if (newAttempts >= 3) {
             setIsLockedOut(true);
             setLockoutTime(LOCKOUT_DURATION);
 
-            // Lockout timer başlat
             const timer = setInterval(() => {
               setLockoutTime((prev) => {
                 if (prev <= 1000) {
@@ -139,32 +131,11 @@ export function useAuth() {
             }, 1000);
           }
 
-          console.log(`❌ Login başarısız. Deneme: ${newAttempts}/3`);
           return false;
         }
       } catch (err) {
-        console.error("❌ Login error:", err);
-
-        // Fallback: Mock auth (backend hazırlanmadıysa)
-        if (password === "antares2026") {
-          const expiryTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
-          const mockToken = generateMockToken();
-
-          localStorage.setItem(TOKEN_KEY, mockToken);
-          localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toISOString());
-
-          setToken(mockToken);
-          setIsLoggedIn(true);
-          setUser({ username: "Lab Admin", role: "system_admin" });
-          setAttemptCount(0);
-          setIsLockedOut(false);
-          setError(null);
-
-          console.log("✅ Mock auth ile giriş yapıldı");
-          return true;
-        }
-
-        setError("Bağlantı hatası. Lütfen daha sonra tekrar deneyin.");
+        console.error("Login hatasi:", err);
+        setError("Baglanti hatasi. Lutfen daha sonra tekrar deneyin.");
         return false;
       } finally {
         setIsLoading(false);
@@ -173,7 +144,7 @@ export function useAuth() {
     [attemptCount, isLockedOut, lockoutTime],
   );
 
-  // Logout fonksiyonu
+  // Logout
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(TOKEN_EXPIRY_KEY);
@@ -183,10 +154,9 @@ export function useAuth() {
     setError(null);
     setAttemptCount(0);
     setIsLockedOut(false);
-    console.log("✅ Çıkış yapıldı");
   }, []);
 
-  // Token refresh (opsiyonel, token süresi dolmakta ise)
+  // Token refresh
   const refreshToken = useCallback(async () => {
     if (!token) return false;
 
@@ -207,14 +177,13 @@ export function useAuth() {
         localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toISOString());
         setToken(data.token);
 
-        console.log("✅ Token refreshed");
         return true;
-      } else if (response.status === 401) {
+      } else {
         logout();
         return false;
       }
     } catch (err) {
-      console.error("❌ Token refresh failed:", err);
+      console.error("Token refresh hatasi:", err);
       return false;
     }
   }, [token, logout]);
@@ -232,20 +201,4 @@ export function useAuth() {
     logout,
     refreshToken,
   };
-}
-
-// Mock JWT token üretme (gerçek JWT ile değiştirilecek)
-function generateMockToken() {
-  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = btoa(
-    JSON.stringify({
-      sub: "admin",
-      name: "Lab Admin",
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 86400,
-    }),
-  );
-  const signature = btoa("mock-signature-key");
-
-  return `${header}.${payload}.${signature}`;
 }

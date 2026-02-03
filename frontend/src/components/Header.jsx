@@ -21,7 +21,7 @@ export default function Header({ lastDataUpdate, user, onLogout }) {
           Son telemetri: {lastDataUpdate.toLocaleTimeString("tr-TR")}
         </div>
 
-        {/* Kullanıcı Bilgisi */}
+        {/* Kullanici Bilgisi */}
         {user && (
           <div className="flex items-center gap-4 pl-4 border-l border-gray-200">
             <div className="text-right text-xs">
