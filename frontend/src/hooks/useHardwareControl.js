@@ -2,7 +2,6 @@ import { useState, useCallback } from "react";
 import axios from "axios";
 
 const API_BASE = "https://antares-backend.onrender.com/api";
-// const API_BASE = "http://localhost:3000/api"; // Local dev
 
 export function useHardwareControl(onStatusChange) {
   const [f1Loading, setF1Loading] = useState(false);
@@ -14,20 +13,21 @@ export function useHardwareControl(onStatusChange) {
       const newValue = isCurrentlyOn ? "OFF" : "ON";
       const newIntVal = isCurrentlyOn ? 0 : 1;
 
-      // Loading state
+      // Loading state başlat
       if (type === "fan1") setF1Loading(true);
       else setF2Loading(true);
 
-      // Optimistic update
+      // Iyimser güncelleme (optimistic update)
       const oldValue = currentValue;
       onDataUpdate((prev) => ({
         ...prev,
         [type === "fan1" ? "f1" : "f2"]: newIntVal,
       }));
 
-      onStatusChange(`Komut gonderiliyor...`);
+      onStatusChange(`⏳ ${type} komutu gönderiliyor...`);
 
       try {
+        // ✅ FIX: Query string'i doğru şekilde oluştur
         const params = {};
         if (type === "fan1") {
           params.fan1 = newValue;
@@ -37,11 +37,13 @@ export function useHardwareControl(onStatusChange) {
 
         const response = await axios.get(`${API_BASE}/cmd`, {
           params: params,
+          // ✅ ÖNEMLI: Interceptor token ekleyecek, başa Bearer yazma
         });
 
-        console.log(`${type} basarili: ${newValue}`);
+        console.log(`✅ ${type} başarıyla ${newValue} yapıldı.`);
+        console.log("Backend response:", response.data);
 
-        // Backend state'i al
+        // Backend state'ini al
         if (response.data.hardwareState) {
           const stateKey = type === "fan1" ? "f1" : "f2";
           onDataUpdate((prev) => ({
@@ -50,21 +52,22 @@ export function useHardwareControl(onStatusChange) {
           }));
         }
 
-        onStatusChange(`${type} basarili: ${newValue}`);
+        onStatusChange(`✅ ${type} başarıyla ${newValue} yapıldı`);
         setTimeout(() => onStatusChange(""), 3000);
       } catch (err) {
-        console.error("Komut hatasi:", err.message);
+        console.error("❌ Komut hatası:", err.message);
+        console.error("Full error:", err);
 
-        // Rollback
+        // Rollback - hata durumunda eski değere dön
         onDataUpdate((prev) => ({
           ...prev,
           [type === "fan1" ? "f1" : "f2"]: oldValue,
         }));
 
         const errorMsg =
-          err.response?.data?.message || err.message || "Ag baglantisi hatasi";
-        onStatusChange(`${type} basarisiz`);
-        alert(`Komut gonderilemedi!\n\n${errorMsg}`);
+          err.response?.data?.message || err.message || "Ağ bağlantısı hatası";
+        onStatusChange(`❌ ${type} başarısız - ${errorMsg}`);
+        alert(`❌ Komut gönderilemedi!\n\n${errorMsg}`);
         setTimeout(() => onStatusChange(""), 5000);
       } finally {
         if (type === "fan1") setF1Loading(false);

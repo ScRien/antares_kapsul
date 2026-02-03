@@ -16,6 +16,8 @@ export const useSensorData = (token, isLoggedIn) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastDataUpdate, setLastDataUpdate] = useState(new Date());
+  const [isHardwareOffline, setIsHardwareOffline] = useState(false);
+  const [lastTelemetryAt, setLastTelemetryAt] = useState(null);
   const [liveModeStatus, setLiveModeStatus] = useState({
     active: false,
     queueStats: { total: 0, pending: 0, sent: 0, acked: 0 },
@@ -43,10 +45,18 @@ export const useSensorData = (token, isLoggedIn) => {
 
         const data = await response.json();
 
-        // Veri validasyonu
+        // Backend'den gelen son telemetri zamanı (log-summary ile güncellenir)
+        if (data.lastTelemetryAt != null) {
+          setLastTelemetryAt(data.lastTelemetryAt);
+        }
+
+        // 0 geçerli değer; sadece undefined/null için "--"
+        const numOrPlaceholder = (v) =>
+          v !== undefined && v !== null ? v : "--";
+
         const validatedData = {
-          t: data.t || "--",
-          h: data.h || "--",
+          t: numOrPlaceholder(data.t),
+          h: numOrPlaceholder(data.h),
           s: data.s || "Bağlantısız",
           f1: typeof data.f1 === "number" ? data.f1 : 0,
           f2: typeof data.f2 === "number" ? data.f2 : 0,
@@ -56,10 +66,18 @@ export const useSensorData = (token, isLoggedIn) => {
 
         setSensorData(validatedData);
         setLastDataUpdate(new Date());
+
+        // Donanım offline: son telemetri 2.5 dakikadan eski veya hiç gelmemiş
+        const OFFLINE_THRESHOLD_MS = 2.5 * 60 * 1000;
+        const telemetryTime = data.lastTelemetryAt ?? 0;
+        const now = Date.now();
+        setIsHardwareOffline(now - telemetryTime > OFFLINE_THRESHOLD_MS);
+
         setError(null);
       } catch (err) {
         console.error("❌ Sensör hatası:", err.message);
         setError("Sensör verisi alınamadı: " + err.message);
+        setIsHardwareOffline(true);
 
         // Hata durumunda da fallback veri koy
         setSensorData((prev) => ({
@@ -111,6 +129,8 @@ export const useSensorData = (token, isLoggedIn) => {
     loading,
     error,
     lastDataUpdate,
+    lastTelemetryAt,
+    isHardwareOffline,
     liveModeStatus,
   };
 };
